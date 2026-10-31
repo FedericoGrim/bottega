@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="$HOME/.cache/dev"
+personal_mount="/opt/personal"
+
+state_file_name_for() {
+  basename "$1" | tr '.:' '__'
+}
+
+find_state_file() {
+  local directory candidate
+  directory="$(realpath "${DEV_DIR:-$PWD}")"
+  while [ "$directory" != "/" ]; do
+    candidate="$state_dir/$(state_file_name_for "$directory").json"
+    if [ -f "$candidate" ] && [ "$(jq -r .localWorkspaceFolder "$candidate")" = "$directory" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+    directory="$(dirname "$directory")"
+  done
+  return 1
+}
+
+run_on_host() {
+  [ $# -eq 0 ] && exec zsh
+  exec "$@"
+}
+
+container_is_running() {
+  [ "$(podman inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" = "true" ]
+}
+
+relative_path_inside() {
+  case "$PWD/" in
+    "$1/"*) printf '%s' "${PWD#"$1"}" ;;
+  esac
+}
+
+state_file="$(find_state_file)" || run_on_host "$@"
+
+container_id="$(jq -r .containerId "$state_file")"
+remote_user="$(jq -r .remoteUser "$state_file")"
+local_root="$(jq -r .localWorkspaceFolder "$state_file")"
+remote_root="$(jq -r .remoteWorkspaceFolder "$state_file")"
+
+if ! container_is_running "$container_id"; then
+  echo "dev-in: the dev container is not running. Start it with: dev-container" >&2
+  exit 1
+fi
+
+[ $# -eq 0 ] && set -- bash
+
+tty_flags=(-i)
+if [ -t 0 ] && [ -t 1 ]; then
+  tty_flags=(-it)
+fi
+
+exec podman exec "${tty_flags[@]}" -u "$remote_user" \
+  -w "$remote_root$(relative_path_inside "$local_root")" \
+  -e TERM="${TERM:-xterm-256color}" -e COLORTERM=truecolor \
+  -e XDG_CONFIG_HOME="$personal_mount/config" -e XDG_DATA_HOME="$personal_mount/data" \
+  -e XDG_STATE_HOME="$personal_mount/state" -e XDG_CACHE_HOME="$personal_mount/cache" \
+  -e CLAUDE_CONFIG_DIR="$personal_mount/claude" \
+  "$container_id" bash -c \
+  'export PATH="/opt/personal/nvim/bin:/opt/personal/bin:$HOME/.local/bin:$PATH"; exec "$@"' _ "$@"

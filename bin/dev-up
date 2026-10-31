@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_dir="$(realpath "${1:-$PWD}")"
+project_name="$(basename "$project_dir" | tr '.:' '__')"
+state_dir="$HOME/.cache/dev"
+state_file="$state_dir/$project_name.json"
+personal_dir="${DEV_PERSONAL_DIR:-$HOME/.local/share/dev-personal}"
+
+die() {
+  echo "dev-up: $*" >&2
+  exit 1
+}
+
+has_devcontainer_config() {
+  [ -f "$project_dir/.devcontainer/devcontainer.json" ] || [ -f "$project_dir/.devcontainer.json" ]
+}
+
+write_default_config() {
+  mkdir -p "$project_dir/.devcontainer"
+  jq -n --arg name "$project_name" '{
+    name: $name,
+    image: "mcr.microsoft.com/devcontainers/base:ubuntu",
+    remoteUser: "vscode",
+    containerUser: "vscode",
+    updateRemoteUserUID: false,
+    runArgs: ["--userns=keep-id:uid=1000,gid=1000"],
+    postCreateCommand: "sudo apt-get update && sudo apt-get install -y ripgrep fd-find fzf build-essential unzip && sudo ln -sf /usr/bin/fdfind /usr/local/bin/fd"
+  }' >"$project_dir/.devcontainer/devcontainer.json"
+  echo "dev-up: generated .devcontainer/devcontainer.json, adjust it to the project" >&2
+}
+
+for required in jq podman devcontainer; do
+  command -v "$required" >/dev/null 2>&1 || die "$required is not installed"
+done
+
+has_devcontainer_config || write_default_config
+[ -d "$personal_dir/bin" ] || dev-personal-setup >&2
+
+result="$(dctl up --workspace-folder "$project_dir" \
+  --mount "type=bind,source=$personal_dir,target=/opt/personal" | tail -n 1)"
+[ "$(jq -r .outcome <<<"$result")" = "success" ] || die "devcontainer up failed: $result"
+
+mkdir -p "$state_dir"
+jq --arg local_root "$project_dir" '{
+  containerId: .containerId,
+  remoteUser: .remoteUser,
+  remoteWorkspaceFolder: .remoteWorkspaceFolder,
+  localWorkspaceFolder: $local_root
+}' <<<"$result" >"$state_file"
