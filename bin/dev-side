@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_dir="$1"
+session_name="$2"
+agent="${DEV_AGENT:-claude}"
+agent_in_container="${DEV_AGENT_IN_CONTAINER:-0}"
+
+side_tmux=(env -u TMUX tmux -L side -f "$HOME/.tmux-side.conf")
+main_tmux="${TMUX:-}"
+main_pane="${TMUX_PANE:-}"
+width_script="$HOME/.local/bin/dev-side-width"
+
+agent_command="$agent"
+if [ "$agent_in_container" = "1" ]; then
+  agent_command="dev-in $agent"
+fi
+
+podman_command="podman-tui"
+if ! command -v podman-tui >/dev/null 2>&1; then
+  podman_command="watch -n 2 podman ps -a"
+fi
+
+if ! "${side_tmux[@]}" has-session -t "=$session_name" 2>/dev/null; then
+  "${side_tmux[@]}" new-session -d -s "$session_name" -n "$agent" -c "$project_dir" \
+    -e "DEV_DIR=$project_dir" -x "$(tput cols)" -y "$(($(tput lines) - 1))"
+  "${side_tmux[@]}" new-window -t "$session_name" -n lazygit -c "$project_dir"
+  "${side_tmux[@]}" new-window -t "$session_name" -n podman -c "$project_dir"
+  "${side_tmux[@]}" send-keys -t "$session_name:$agent" "$agent_command" Enter
+  "${side_tmux[@]}" send-keys -t "$session_name:lazygit" "lazygit" Enter
+  "${side_tmux[@]}" send-keys -t "$session_name:podman" "$podman_command" Enter
+  "${side_tmux[@]}" select-window -t "$session_name:$agent"
+fi
+
+"${side_tmux[@]}" set-hook -t "$session_name" after-select-window \
+  "run-shell -b '$width_script \"$main_tmux\" \"$main_pane\" #{window_name}'"
+
+exec "${side_tmux[@]}" attach -t "$session_name"

@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+personal_dir="${DEV_PERSONAL_DIR:-$HOME/.local/share/dev-personal}"
+claude_shared_items=(CLAUDE.md skills commands agents)
+
+die() {
+  echo "dev-personal-setup: $*" >&2
+  exit 1
+}
+
+copy_fresh() {
+  rm -rf "$2"
+  cp -a "$1" "$2"
+}
+
+neovim_root() {
+  local binary root
+  binary="$(command -v nvim)" || die "nvim not found"
+  root="$(dirname "$(dirname "$(readlink -f "$binary")")")"
+  case "$root" in
+    /usr | /usr/local) die "nvim comes from the system packages; install the official tarball first" ;;
+  esac
+  [ -x "$root/bin/nvim" ] || die "unexpected Neovim layout in $root"
+  printf '%s' "$root"
+}
+
+copy_executable_if_present() {
+  local name="$1" binary
+  if binary="$(command -v "$name")"; then
+    cp -f "$(readlink -f "$binary")" "$personal_dir/bin/$name"
+    echo "  copied: $name"
+  else
+    echo "  skipped (not installed on the host): $name"
+  fi
+}
+
+mkdir -p "$personal_dir"/{bin,config,data,state,cache,claude}
+
+echo "Preparing $personal_dir"
+copy_fresh "$(neovim_root)" "$personal_dir/nvim"
+echo "  copied: Neovim runtime"
+
+if [ -d "$HOME/.config/nvim" ]; then
+  copy_fresh "$HOME/.config/nvim" "$personal_dir/config/nvim"
+  echo "  copied: Neovim configuration"
+fi
+
+copy_executable_if_present claude
+copy_executable_if_present opencode
+
+for item in "${claude_shared_items[@]}"; do
+  if [ -e "$HOME/.claude/$item" ]; then
+    copy_fresh "$HOME/.claude/$item" "$personal_dir/claude/$item"
+    echo "  copied: ~/.claude/$item"
+  fi
+done
+
+echo "Done. Logins and API keys are never copied: sign in once inside the container."

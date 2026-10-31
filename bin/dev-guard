@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+import json
+import os
+import re
+import shlex
+import sys
+from pathlib import Path
+
+CONTAINER_COMMAND = "dev-in"
+HOOK_COMMAND = '"$HOME/.local/bin/dev-guard"'
+PERMISSION_RULE = "Bash(dev-in:*)"
+BLOCK_EXIT_CODE = 2
+SAFE_HOST_COMMANDS = frozenset(
+    {
+        "cd",
+        "git",
+        "ls",
+        "cat",
+        "rg",
+        "fd",
+        "pwd",
+        "echo",
+        "head",
+        "tail",
+        "wc",
+        "grep",
+        "tree",
+        "stat",
+        "file",
+        "diff",
+        "which",
+        "true",
+    }
+)
+ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+QUOTED_HEREDOC_SUBSTITUTION = re.compile(
+    r"\$\(cat <<-?(['\"])(\w+)\1\n.*?\n\2\n?\s*\)", re.DOTALL
+)
+
+
+class UnsafeCommand(Exception):
+    pass
+
+
+def state_file_for(project_dir):
+    name = os.path.basename(os.path.realpath(project_dir)).translate(
+        str.maketrans(".:", "__")
+    )
+    return Path.home() / ".cache" / "dev" / f"{name}.json"
+
+
+def strip_quoted_heredoc_substitutions(command):
+    return QUOTED_HEREDOC_SUBSTITUTION.sub("X", command)
+
+
+def is_substitution_start(command, index):
+    return command[index] == "`" or command.startswith(("$(", "<(", ">("), index)
+
+
+def is_background_operator(command, index):
+    previous_char = command[index - 1] if index > 0 else ""
+    next_char = command[index + 1] if index + 1 < len(command) else ""
+    return previous_char not in "<>" and next_char != ">"
+
+
+def separator_length(command, index):
+    if command.startswith(("&&", "||"), index):
+        return 2
+    char = command[index]
+    if char in ";|\n":
+        return 1
+    if char == "&" and is_background_operator(command, index):
+        return 1
+    return 0
+
+
+def split_segments(command):
+    segments = []
+    current = []
+    quote = None
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if quote == "'":
+            current.append(char)
+            if char == "'":
+                quote = None
+        elif quote == '"':
+            if char == "\\" and index + 1 < len(command):
+                current.append(command[index : index + 2])
+                index += 1
+            elif is_substitution_start(command, index):
+                raise UnsafeCommand("command substitution is not allowed")
+            else:
+                current.append(char)
+                if char == '"':
+                    quote = None
+        elif char == "\\" and index + 1 < len(command):
+            current.append(command[index : index + 2])
+            index += 1
+        elif char in "'\"":
+            quote = char
+            current.append(char)
+        elif is_substitution_start(command, index):
+            raise UnsafeCommand("command substitution is not allowed")
+        elif separator_length(command, index):
+            segments.append("".join(current))
+            current = []
+            index += separator_length(command, index) - 1
+        else:
+            current.append(char)
+        index += 1
+    if quote is not None:
+        raise UnsafeCommand("unbalanced quotes")
+    segments.append("".join(current))
+    return segments
+
+
+def first_command_word(segment):
+    try:
+        tokens = shlex.split(segment)
+    except ValueError as error:
+        raise UnsafeCommand(str(error)) from error
+    for token in tokens:
+        if not ENV_ASSIGNMENT.match(token):
+            return token
+    return None
+
+
+def find_violation(command):
+    try:
+        segments = split_segments(strip_quoted_heredoc_substitutions(command))
+        for segment in segments:
+            word = first_command_word(segment)
+            if (
+                word is not None
+                and word != CONTAINER_COMMAND
+                and word not in SAFE_HOST_COMMANDS
+            ):
+                return f"'{word}' must not run on the host"
+    except UnsafeCommand as error:
+        return str(error)
+    return None
+
+
+def project_directory(payload):
+    return os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or os.getcwd()
+
+
+def evaluate(raw_payload):
+    payload = json.loads(raw_payload)
+    if payload.get("tool_name") != "Bash":
+        return 0
+    command = payload["tool_input"]["command"]
+    if not isinstance(command, str):
+        raise TypeError("command must be a string")
+    if not state_file_for(project_directory(payload)).exists():
+        return 0
+    violation = find_violation(command)
+    if violation is None:
+        return 0
+    print(
+        f"dev-guard: {violation}. This project runs in a dev container. "
+        f"Run the command inside it with: {CONTAINER_COMMAND} <command>",
+        file=sys.stderr,
+    )
+    return BLOCK_EXIT_CODE
+
+
+def main():
+    try:
+        return evaluate(sys.stdin.read())
+    except Exception as error:  # noqa: BLE001
+        print(
+            f"dev-guard: internal error, blocking for safety: {error}", file=sys.stderr
+        )
+        return BLOCK_EXIT_CODE
+
+
+def load_settings(path):
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+def install_hook(project_dir):
+    path = Path(project_dir) / ".claude" / "settings.local.json"
+    settings = load_settings(path)
+
+    allow_rules = settings.setdefault("permissions", {}).setdefault("allow", [])
+    if PERMISSION_RULE not in allow_rules:
+        allow_rules.append(PERMISSION_RULE)
+
+    groups = settings.setdefault("hooks", {}).setdefault("PreToolUse", [])
+    already_installed = any(
+        handler.get("command") == HOOK_COMMAND
+        for group in groups
+        for handler in group.get("hooks", [])
+    )
+    if not already_installed:
+        groups.append(
+            {"matcher": "Bash", "hooks": [{"type": "command", "command": HOOK_COMMAND}]}
+        )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(settings, indent=2) + "\n")
+
+
+def cli(arguments):
+    if arguments[:1] == ["--install"]:
+        install_hook(arguments[1] if len(arguments) > 1 else os.getcwd())
+        return 0
+    return main()
+
+
+if __name__ == "__main__":
+    sys.exit(cli(sys.argv[1:]))

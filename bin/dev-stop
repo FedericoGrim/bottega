@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="$HOME/.cache/dev"
+stop_containers=0
+
+[ "${1:-}" = "-k" ] && stop_containers=1
+
+stop_all_containers() {
+  local state_file container_id
+  for state_file in "$state_dir"/*.json; do
+    [ -f "$state_file" ] || continue
+    container_id="$(jq -r '.containerId // empty' "$state_file")"
+    [ -n "$container_id" ] && podman stop "$container_id" >/dev/null 2>&1 || true
+  done
+}
+
+[ "$stop_containers" = "1" ] && stop_all_containers
+
+setsid -f sh -c '
+  sleep 0.3
+  tmux -L side kill-server 2>/dev/null
+  tmux -L terminals kill-server 2>/dev/null
+  tmux kill-server 2>/dev/null
+' >/dev/null 2>&1

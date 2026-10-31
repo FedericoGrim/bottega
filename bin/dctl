@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+subcommand="${1:?usage: dctl <devcontainer-subcommand> [arguments]}"
+shift
+
+runtime_flags=(--docker-path podman)
+if command -v docker-compose >/dev/null 2>&1; then
+  runtime_flags+=(--docker-compose-path docker-compose)
+fi
+
+exec devcontainer "$subcommand" "${runtime_flags[@]}" "$@"
