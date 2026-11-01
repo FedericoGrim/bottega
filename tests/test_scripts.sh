@@ -54,7 +54,7 @@ write_fake_marker() {
 write_fakes() {
   printf '#!/bin/bash\nexec bash "$@"\n' >"$fakebin/zsh"
   chmod +x "$fakebin/zsh"
-  for name in nvim claude opencode lazygit podman-tui; do write_fake_marker "$name"; done
+  for name in nvim claude opencode lazygit podman-tui lazydocker; do write_fake_marker "$name"; done
 
   cat >"$fakebin/podman" <<'EOF'
 #!/bin/bash
@@ -64,6 +64,9 @@ case "$1" in
   exec) echo "FAKE-PODMAN-EXEC $*"; if [ -t 1 ]; then sleep 120; fi ;;
 esac
 EOF
+
+  sed 's/podman/docker/g; s/PODMAN/DOCKER/g' "$fakebin/podman" >"$fakebin/fake-docker"
+  printf '#!/bin/bash\necho "FAKE-SHELL $*"\n' >"$fakebin/fake-shell"
 
   cat >"$fakebin/devcontainer" <<'EOF'
 #!/bin/bash
@@ -84,7 +87,7 @@ for argument in "\$@"; do
 done
 exec "$real_tmux" "\$@"
 EOF
-  chmod +x "$fakebin/podman" "$fakebin/devcontainer" "$fakebin/tmux"
+  chmod +x "$fakebin/podman" "$fakebin/fake-docker" "$fakebin/fake-shell" "$fakebin/devcontainer" "$fakebin/tmux"
 }
 
 export FAKE_LOG_DIR="$root/logs"
@@ -174,7 +177,7 @@ done
 assert_contains "unknown option is rejected" "$(cd "$root/work/plain" && dev --nope 2>&1)" "unknown option"
 
 side_windows() { "$real_tmux" -L side list-windows -t "=$1" -F '#{window_name}' 2>/dev/null | tr '\n' ' '; }
-side_ready() { [ "$(side_windows "$1")" = "$2 lazygit podman " ]; }
+side_ready() { [ "$(side_windows "$1")" = "$2 lazygit ${3:-podman} " ]; }
 pane_text() {
   local socket_args=()
   if [ "$1" = "-L" ]; then
@@ -241,6 +244,30 @@ echo "== dev-stop -k"
 dev-stop -k
 assert_contains "containers are stopped" "$(cat "$FAKE_LOG_DIR/podman.log")" "podman stop abc123"
 assert_true "tmux servers are gone" wait_for 10 bash -c "! '$real_tmux' has-session 2>/dev/null"
+
+echo "== docker engine and shell from the config file"
+mkdir -p "$HOME/.config/dev-variants"
+ln -sf "$fakebin/fake-docker" "$fakebin/docker"
+cat >"$HOME/.config/dev-variants/config" <<EOF
+: "\${DEV_ENGINE:=docker}"
+: "\${DEV_PANEL:=lazydocker}"
+: "\${DEV_SHELL:=$fakebin/fake-shell}"
+EOF
+assert_contains "host shell comes from the config" "$(cd "$root/work/plain" && dev-in </dev/null)" "FAKE-SHELL"
+mkdir -p "$root/work/dock"
+(cd "$root/work/dock" && dev-c-c >/dev/null 2>&1)
+docker_config="$(cat "$root/work/dock/.devcontainer/devcontainer.json")"
+assert_not_contains "docker config has no keep-id" "$docker_config" "keep-id"
+assert_contains "docker config updates the user id" "$docker_config" '"updateRemoteUserUID": true'
+assert_contains "up uses docker" "$(tail -n 1 "$FAKE_LOG_DIR/devcontainer.log")" "up --docker-path docker"
+assert_true "side panel has a docker tab" wait_for 15 side_ready dock claude docker
+sleep 1
+assert_contains "editor runs through docker exec" "$(pane_text -t dock:code.{top-left})" "FAKE-DOCKER-EXEC"
+assert_contains "docker tab runs lazydocker" "$(pane_text -L side -t dock:docker)" "FAKE-lazydocker"
+assert_contains "main session uses the chosen shell" "$("$real_tmux" show-options -t dock -v default-shell)" "fake-shell"
+dev-stop -k
+assert_contains "docker containers are stopped" "$(cat "$FAKE_LOG_DIR/docker.log")" "docker stop abc123"
+wait_for 10 bash -c "! '$real_tmux' has-session 2>/dev/null"
 
 "$real_tmux" kill-server 2>/dev/null || true
 "$real_tmux" -L side kill-server 2>/dev/null || true
