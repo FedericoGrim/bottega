@@ -132,7 +132,7 @@ assert_contains "panel choice is saved" "$(cat "$user_config")" 'DEV_PANEL:=lazy
 assert_contains "kept shell is saved" "$(cat "$user_config")" "DEV_SHELL:=$SHELL"
 assert_contains "missing docker is reported" "$output" "missing: docker"
 assert_contains "docker install command is shown" "$output" "usermod -aG docker"
-assert_contains "missing lazydocker is reported" "$output" "missing: lazydocker"
+assert_contains "chosen panel is checked" "$output" "ok: lazydocker"
 assert_contains "claude is checked for dev-c-c" "$output" "ok: claude"
 assert_not_contains "opencode is not checked without an opencode env" "$output" "opencode"
 assert_contains "devcontainer is checked for container envs" "$output" "ok: devcontainer"
@@ -145,7 +145,7 @@ assert_contains "podman version is checked" "$output" "ok: podman 4.9.3"
 assert_contains "previous shell choice is kept" "$(cat "$user_config")" "DEV_SHELL:=$SHELL"
 assert_contains "podman-tui with docker is rejected" "$("$project_root/install.sh" --yes --engine docker --panel podman-tui 2>&1)" "podman-tui works only with podman"
 assert_contains "unknown env is rejected" "$("$project_root/install.sh" --yes --envs nope 2>&1)" "unknown environment: nope"
-printf '2,4\n2\n1\n2\n' | script -qec "$project_root/install.sh" /dev/null >/dev/null 2>&1
+printf '2,4\n2\n2\n' | script -qec "$project_root/install.sh" /dev/null >/dev/null 2>&1
 assert_contains "interactive envs are saved" "$(cat "$user_config")" 'DEV_ENVS:=dev-o dev-c-o'
 assert_contains "interactive engine is saved" "$(cat "$user_config")" 'DEV_ENGINE:=docker'
 assert_contains "interactive panel is saved" "$(cat "$user_config")" 'DEV_PANEL:=lazydocker'
