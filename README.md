@@ -1,9 +1,21 @@
 # dev-variants
 
-Il mio ambiente di sviluppo da terminale: un comando `dev` che apre in tmux LazyVim, l'agente AI (Claude Code o OpenCode), lazygit, podman-tui e i terminali, sul PC o dentro un dev container.
+Il mio ambiente di sviluppo da terminale: un comando `dev` che apre in tmux LazyVim, l'agente AI (Claude Code o OpenCode), lazygit, un pannello per i container (podman-tui o lazydocker) e i terminali, sul PC o dentro un dev container con Podman o Docker.
+
+Quattro ambienti, un comando ciascuno:
+
+| Comando | Progetto | Agente |
+| --- | --- | --- |
+| `dev` | sul PC | Claude Code |
+| `dev-o` | sul PC | OpenCode |
+| `dev-c-c` | in un dev container | Claude Code (sul PC) |
+| `dev-c-o` | in un dev container | OpenCode (sul PC) |
+
+`dev --help` mostra l'elenco di tutti i comandi.
 
 - [Come è fatto lo schermo](#come-è-fatto-lo-schermo)
 - [Installazione](#installazione)
+- [Le scelte dell'installer](#le-scelte-dellinstaller)
 - [Comandi](#comandi)
 - [Tasti](#tasti)
 - [Dev container: come funzionano](#dev-container-come-funzionano)
@@ -27,7 +39,8 @@ Il mio ambiente di sviluppo da terminale: un comando `dev` che apre in tmux Lazy
 ┌──────────────────────────────┬─────────────┐
 │                              │ 1 claude    │
 │  LazyVim                     │ 2 lazygit   │
-│                              │ 3 podman    │
+│                              │ 3 podman o  │
+│                              │   docker    │
 │                              │             │
 ├──────────────────────────────┤  (pannello  │
 │  terminali (Alt+n nuovo)     │  laterale)  │
@@ -36,7 +49,7 @@ Il mio ambiente di sviluppo da terminale: un comando `dev` che apre in tmux Lazy
 
 - **Editor**: LazyVim.
 - **Terminali** in basso: una sessione tmux a parte (`-L terminals`) con le sue schede.
-- **Pannello laterale** a destra: una terza sessione tmux (`-L side`) con tre schede: agente, lazygit, podman-tui. Se `podman-tui` non c'è, al suo posto gira `watch podman ps -a`. La larghezza del pannello cambia con la scheda: agente 30% (OpenCode 35%), lazygit 40%, podman 55%.
+- **Pannello laterale** a destra: una terza sessione tmux (`-L side`) con tre schede: agente, lazygit e il pannello dei container scelto (podman-tui o lazydocker; la scheda si chiama `podman` o `docker` come il motore). Se il pannello non è installato, al suo posto gira `watch podman ps -a` (o `docker ps -a`). La larghezza del pannello cambia con la scheda: agente 30% (OpenCode 35%), lazygit 40%, container 55%.
 
 Se la sessione esiste già, `dev` ci rientra invece di crearne una nuova.
 
@@ -48,14 +61,38 @@ cd dev-variants
 ./install.sh
 ```
 
-`install.sh`:
+`install.sh` prima fa alcune domande (vedi [sotto](#le-scelte-dellinstaller)), poi:
 
 1. copia gli script di `bin/` in `~/.local/bin`. Se c'è già un file diverso con lo stesso nome, prima lo salva in `~/.dev-variants-backup-DATA/`;
 2. copia le configurazioni di tmux da `tmux/` in `~/.tmux.conf`, `~/.tmux-side.conf` e `~/.tmux-terminals.conf`, **solo se mancano**: quelle che hai già restano come sono;
-3. aggiunge a `~/.tmux-terminals.conf` un blocco che fa aprire `dev-in` con `Alt+n`;
-4. elenca i programmi che mancano.
+3. toglie i vecchi nomi `dev-container` e `dev-opencode` (dopo averli messi nel backup);
+4. aggiunge a `~/.tmux-terminals.conf` un blocco che fa aprire `dev-in` con `Alt+n`;
+5. se hai scelto zsh, installa oh-my-zsh e i plugin;
+6. salva le scelte in `~/.config/dev-variants/config`;
+7. controlla solo i programmi che servono per le tue scelte e, per quelli che mancano, stampa il comando per installarli. Non installa niente da solo, tranne zsh.
 
-Si può rilanciare quando vuoi, per esempio dopo un `git pull`: il blocco in `~/.tmux-terminals.conf` non viene duplicato.
+Si può rilanciare quando vuoi, per esempio dopo un `git pull` o per cambiare le scelte: propone come risposta predefinita quelle dell'ultima volta, e il blocco in `~/.tmux-terminals.conf` non viene duplicato.
+
+## Le scelte dell'installer
+
+| Domanda | Risposte | Cosa cambia |
+| --- | --- | --- |
+| Ambienti | uno o più tra `dev`, `dev-o`, `dev-c-c`, `dev-c-o` | quali programmi vengono controllati: Claude per `dev` e `dev-c-c`, OpenCode per `dev-o` e `dev-c-o`, motore e CLI `devcontainer` per `dev-c-*`. I comandi vengono installati comunque tutti |
+| Motore dei container (solo con `dev-c-*`) | `podman` o `docker` | quale programma usano `dev-up`, `dev-in`, `dctl` e `dev-stop`, e com'è fatto il `devcontainer.json` generato |
+| Pannello dei container (solo con Podman) | `podman-tui` o `lazydocker` | cosa gira nella scheda 3 del pannello laterale. Con Docker è sempre lazydocker, perché podman-tui funziona solo con Podman |
+| Shell delle sessioni dev | `zsh` o `keep` | la shell dei pannelli aperti da `dev` sul PC. **La shell di sistema non cambia**: fuori da `dev` resta la tua. Con `zsh` l'installer installa oh-my-zsh e i plugin `git zsh-autosuggestions fzf fast-syntax-highlighting`; un `.zshrc` già presente non viene sostituito, cambia solo la riga `plugins=` |
+
+Dentro il container la shell è sempre `bash` dell'immagine, qualunque sia la scelta.
+
+Senza terminale (per esempio in uno script) o con `--yes` non fa domande e usa le scelte precedenti, o quelle predefinite: tutti gli ambienti, Podman, podman-tui, shell `keep`. Le scelte si possono dare anche da riga di comando:
+
+```bash
+./install.sh --envs dev,dev-c-c --engine docker --shell zsh
+./install.sh --yes --envs all --engine podman --panel lazydocker --shell keep
+./install.sh --help
+```
+
+Il file `~/.config/dev-variants/config` si può anche modificare a mano. Ogni valore si può cambiare per un solo comando con una variabile d'ambiente con lo stesso nome, per esempio `DEV_ENGINE=docker dev-c-c`.
 
 ### Cosa serve
 
@@ -66,10 +103,11 @@ Si può rilanciare quando vuoi, per esempio dopo un `git pull`: il blocco in `~/
 | Neovim ufficiale + LazyVim | editor | tarball in `/opt` (vedi `dev-env.sh`). Quello dei pacchetti di sistema non va bene per il container |
 | lazygit | pannello laterale | vedi `dev-env.sh` |
 | Claude Code | agente | `curl -fsSL https://claude.ai/install.sh \| bash` |
-| podman | container | `sudo apt install podman` |
+| podman 4.3 o più recente, oppure Docker | container | `sudo apt install podman` / `sudo apt install docker.io && sudo usermod -aG docker $USER` |
 | CLI `devcontainer` | container | `npm i -g @devcontainers/cli` |
-| podman-tui | pannello laterale (facoltativo) | `dev-env.sh install --containers` |
-| OpenCode | `dev-opencode` (facoltativo) | `npm i -g opencode-ai` |
+| podman-tui | pannello laterale con Podman | `dev-env.sh install --containers` |
+| lazydocker | pannello laterale con Docker (o con Podman, se lo scegli) | [script ufficiale](https://github.com/jesseduffield/lazydocker#installation) |
+| OpenCode | `dev-o`, `dev-c-o` | `npm i -g opencode-ai` |
 | docker-compose | solo i dev container basati su compose | vedi `dev-env.sh` |
 
 `~/.local/bin` deve essere nel `PATH`.
@@ -84,27 +122,28 @@ Si può rilanciare quando vuoi, per esempio dopo un `git pull`: il blocco in `~/
 | `dev --agent opencode` | come sopra, con OpenCode al posto di Claude |
 | `dev --container` | apre il progetto in un dev container, e lo crea se manca |
 | `dev --agent-in-container` | come `--container`, ma anche l'agente gira dentro il container |
-| `dev -h` | aiuto |
-| `dev-container` | scorciatoia per `dev --container` |
-| `dev-opencode` | scorciatoia per `dev --agent opencode` |
+| `dev -h`, `dev --help` | opzioni ed elenco di tutti i comandi |
+| `dev-o` | scorciatoia per `dev --agent opencode` |
+| `dev-c-c` | scorciatoia per `dev --container` |
+| `dev-c-o` | scorciatoia per `dev --container --agent opencode` |
 
-Le opzioni si combinano: `dev-opencode --container`, `dev --container --agent-in-container`.
-Se un progetto ha già un container avviato con `dev-container`, basta `dev`: lo trova da solo.
+Le opzioni si combinano: `dev-c-o --agent-in-container`, `dev-c-c ~/progetti/altro`.
+Se un progetto ha già un container avviato con `dev-c-c` o `dev-c-o`, basta `dev`: lo trova da solo.
 
 ### Container
 
 | Comando | Cosa fa |
 | --- | --- |
 | `dev-up [cartella]` | avvia il dev container del progetto. Se manca `.devcontainer/devcontainer.json` ne genera uno base. Salva l'id del container in `~/.cache/dev/<progetto>.json`. Di solito lo chiama `dev --container` |
-| `dev-in [comando]` | esegue un comando nel container del progetto (senza comando apre `bash`). Se il progetto non ha un container, esegue il comando sul PC (senza comando apre `zsh`) |
-| `dctl <sottocomando> ...` | la CLI `devcontainer` già impostata per Podman. Esempi: `dctl up --workspace-folder .`, `dctl exec --workspace-folder . bash` |
+| `dev-in [comando]` | esegue un comando nel container del progetto (senza comando apre `bash`). Se il progetto non ha un container, esegue il comando sul PC (senza comando apre la shell scelta) |
+| `dctl <sottocomando> ...` | la CLI `devcontainer` già impostata per il motore scelto. Esempi: `dctl up --workspace-folder .`, `dctl exec --workspace-folder . bash` |
 | `dev-personal-setup` | prepara o aggiorna `~/.local/share/dev-personal`, la cartella con Neovim, la configurazione e gli agenti che viene montata nei container |
 
 ### Chiudere
 
 | Comando | Cosa fa |
 | --- | --- |
-| `dev-stop` | chiude tutte le sessioni tmux: principale, laterale e terminali. Vale per `dev`, `dev-opencode` e `dev-container` |
+| `dev-stop` | chiude tutte le sessioni tmux: principale, laterale e terminali. Vale per tutti e quattro gli ambienti |
 | `dev-stop -k` | come sopra, e ferma anche tutti i container avviati con `dev-up` |
 
 `dev-stop` non ferma i container: il prossimo `dev` li ritrova accesi e parte subito.
@@ -135,18 +174,18 @@ Li usa `dev`, non serve lanciarli a mano:
 | --- | --- |
 | `Alt+1` | agente (Claude o OpenCode) |
 | `Alt+2` | lazygit |
-| `Alt+3` | podman-tui |
+| `Alt+3` | pannello dei container (podman-tui o lazydocker) |
 
 ### Terminali (`~/.tmux-terminals.conf`, prefisso `Ctrl+a`)
 
 | Tasto | Azione |
 | --- | --- |
-| `Alt+n` | nuova scheda con `dev-in`: shell nel container se il progetto ne ha uno, altrimenti `zsh` sul PC |
+| `Alt+n` | nuova scheda con `dev-in`: shell nel container se il progetto ne ha uno, altrimenti la shell scelta sul PC |
 | `Alt+←` / `Alt+→` | scheda precedente / successiva |
 | `Alt+r` | rinomina la scheda |
 | `Alt+x` | chiude la scheda (chiede conferma) |
 
-Se il progetto ha un container ma è spento, `Alt+n` dà errore e la scheda si chiude subito: avvialo con `dev-container`.
+Se il progetto ha un container ma è spento, `Alt+n` dà errore e la scheda si chiude subito: avvialo con `dev-c-c` o `dev-c-o`.
 
 ### LazyVim
 
@@ -171,7 +210,7 @@ Quindi ogni persona del team ottiene lo stesso ambiente (stesse versioni di ling
 
 ### Cosa aggiunge questo setup
 
-`dev-up` usa la CLI ufficiale `devcontainer` con Podman:
+`dev-up` usa la CLI ufficiale `devcontainer` con il motore scelto (Podman o Docker):
 
 1. cerca `.devcontainer/devcontainer.json` (o `.devcontainer.json`) nel progetto. Se c'è, usa **quello, senza modificarlo**. Se manca, ne genera uno base;
 2. avvia il container con `devcontainer up` e in più monta `~/.local/share/dev-personal` in `/opt/personal`, passandolo da riga di comando: nel `devcontainer.json` non finisce niente;
@@ -180,6 +219,8 @@ Quindi ogni persona del team ottiene lo stesso ambiente (stesse versioni di ling
 Così il tuo editor funziona in qualunque dev container, anche in quelli di altri, e chi apre lo stesso progetto con VS Code non vede niente di tuo.
 
 ### Il devcontainer.json generato
+
+Con Podman:
 
 ```json
 {
@@ -193,6 +234,8 @@ Così il tuo editor funziona in qualunque dev container, anche in quelli di altr
 }
 ```
 
+Con Docker al posto di `updateRemoteUserUID: false` e `runArgs` c'è `"updateRemoteUserUID": true`: è la CLI `devcontainer` che allinea l'utente `vscode` al tuo.
+
 - `--userns=keep-id`: con Podman rootless fa coincidere l'utente `vscode` del container con il tuo utente sul PC, così i file creati nel container sono tuoi e non di un utente strano.
 - `postCreateCommand`: installa ciò che serve a LazyVim (ricerca, compilatore per treesitter).
 
@@ -202,7 +245,7 @@ Adattalo al progetto: cambia `image`, aggiungi `features`, e committalo.
 
 ```bash
 mkdir -p ~/progetti/mio-progetto && cd ~/progetti/mio-progetto && git init
-dev-container
+dev-c-c
 ```
 
 Al primo avvio, in automatico:
@@ -222,9 +265,9 @@ Poi:
 - per applicare una modifica della ricetta bisogna ricreare il container:
   ```bash
   dev-stop -k
-  podman ps -a              # trova l'id del container del progetto
-  podman rm -f <id>
-  dev-container
+  podman ps -a              # o docker ps -a: trova l'id del container del progetto
+  podman rm -f <id>         # o docker rm -f <id>
+  dev-c-c
   ```
 - committa `.devcontainer/`. Aggiungi `.claude/settings.local.json` al `.gitignore`: è tuo, non del progetto.
 
@@ -242,7 +285,7 @@ dev-stop -k          # chiude e ferma il container
 
 ```bash
 git clone <repo> && cd <repo>
-dev-container
+dev-c-c
 ```
 
 `dev-up` usa il loro `devcontainer.json` così com'è. Cosa può andare storto, dal più probabile:
@@ -256,14 +299,14 @@ Claude locale, lazygit e git restano sul PC, quindi questi problemi non li tocca
 
 ## Dove gira cosa
 
-| Programma | Senza container | `--container` | `--agent-in-container` |
+| Programma | `dev`, `dev-o` | `dev-c-c`, `dev-c-o` | con `--agent-in-container` |
 | --- | --- | --- | --- |
 | LazyVim | PC | container | container |
 | Terminali | PC | container | container |
 | Agente (Claude o OpenCode) | PC | **PC** | container |
-| lazygit, git, podman-tui | PC | PC | PC |
+| lazygit, git, pannello dei container | PC | PC | PC |
 
-Con `--container` l'agente è **il tuo Claude locale**: stesso login, stessa configurazione `~/.claude`. Git gira sempre sul PC, così le chiavi SSH e le credenziali di GitHub non entrano mai nel container.
+Con `dev-c-c` e `dev-c-o` l'agente è **quello installato sul PC**: stesso login, stessa configurazione `~/.claude`. Git gira sempre sul PC, così le chiavi SSH e le credenziali di GitHub non entrano mai nel container.
 
 Con `--agent-in-container` l'agente è una copia separata che usa `/opt/personal/claude` come configurazione. Il login va fatto una volta dentro il container: `dev-in claude` (oppure `dev-in opencode`).
 
@@ -280,7 +323,7 @@ Limiti:
 
 - protegge dagli errori, non da un attacco fatto apposta;
 - non controlla gli strumenti Edit e Write: Claude scrive i file direttamente sul PC (sono gli stessi file del container, perché la cartella è montata), e potrebbe scrivere anche fuori dal progetto;
-- vale solo per Claude Code. Con OpenCode sul PC non c'è un equivalente: usa `--agent-in-container`.
+- vale solo per Claude Code. **Con `dev-c-o` OpenCode gira sul PC senza protezione**: può eseguire comandi sul PC invece che nel container. Se vuoi evitarlo usa `dev-c-o --agent-in-container`.
 
 ## Configurazione personale nel container
 
@@ -328,13 +371,15 @@ Alla fine stampa i passi da fare a mano: `chsh` per zsh, scegliere il font nel t
 | Problema | Causa e soluzione |
 | --- | --- |
 | `dev-up: devcontainer is not installed` | `npm i -g @devcontainers/cli` |
-| `dev-in: the dev container is not running` | il container è spento: `dev-container` |
+| `dev-in: the dev container is not running` | il container è spento: `dev-c-c` o `dev-c-o` |
 | `nvim comes from the system packages` | serve il Neovim ufficiale in `/opt`, quello di apt non si può copiare nel container |
 | nel container non posso scrivere i file del progetto | manca `--userns=keep-id` nella ricetta, vedi [sopra](#aprire-il-dev-container-di-qualcun-altro) |
-| ho cambiato `devcontainer.json` ma non cambia niente | il container vecchio è ancora lì: `podman rm -f <id>` e poi `dev-container` |
+| ho cambiato `devcontainer.json` ma non cambia niente | il container vecchio è ancora lì: `podman rm -f <id>` (o `docker rm -f <id>`) e poi `dev-c-c` |
 | il pannello laterale ha la larghezza sbagliata | guarda `~/.cache/dev/side-width.log` |
 | Claude mi dice che un comando è bloccato | è `dev-guard`: il comando va fatto con `dev-in`. Per toglierlo, cancella l'hook da `.claude/settings.local.json` |
 | LazyVim nel container non ha le mie ultime modifiche | `dev-personal-setup` |
+| `dev-up: docker is not installed` (o `podman`) | il motore scelto non c'è: installalo, o rilancia `./install.sh` e scegli l'altro |
+| `dev-container: command not found` | i vecchi nomi sono stati tolti: usa `dev-c-c` e `dev-o`/`dev-c-o` |
 | `Alt+n` non apre la shell nel container | chiudi e riapri le sessioni (`dev-stop` e poi `dev`) per caricare la nuova configurazione |
 
 ## Disinstallare o tornare indietro
@@ -348,9 +393,9 @@ cp ~/.dev-variants-backup-DATA/* ~/.local/bin/
 Per togliere tutto:
 
 ```bash
-cd ~/.local/bin && rm -f dctl dev-container dev-guard dev-in dev-opencode dev-personal-setup dev-up
+cd ~/.local/bin && rm -f dctl dev-o dev-c-c dev-c-o dev-guard dev-in dev-personal-setup dev-up
 sed -i '/# >>> dev-variants >>>/,/# <<< dev-variants <<</d' ~/.tmux-terminals.conf
-rm -rf ~/.local/share/dev-personal ~/.cache/dev
+rm -rf ~/.local/share/dev-personal ~/.cache/dev ~/.config/dev-variants
 ```
 
 `dev`, `dev-side`, `dev-side-width` e `dev-stop` c'erano anche prima: rimettili dal backup invece di cancellarli.
@@ -367,16 +412,17 @@ rm -rf ~/.local/share/dev-personal ~/.cache/dev
 
 ```bash
 python3 -m unittest discover -s tests   # dev-guard: 21 test
-bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 64 controlli
+bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 111 controlli
 ```
 
 `test_scripts.sh` lavora in una home temporanea: non tocca la tua configurazione.
 
 ## Cosa non è ancora provato
 
-I test usano tmux vero, ma Podman, `devcontainer`, Neovim, Claude e OpenCode simulati. Da verificare al primo uso reale:
+I test usano tmux vero, ma Podman, Docker, `devcontainer`, Neovim, Claude, OpenCode, podman-tui e lazydocker simulati. Da verificare al primo uso reale:
 
-- `devcontainer up` con Podman rootless;
+- `devcontainer up` con Podman rootless e con Docker;
+- lazydocker con il socket di Podman;
 - i permessi della cartella montata;
 - `claude` e `opencode` copiati che partono nel container;
 - il login di OpenCode con Claude.
