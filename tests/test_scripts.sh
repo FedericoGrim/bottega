@@ -236,7 +236,7 @@ assert_true "main window has 3 panes" test "$("$real_tmux" list-panes -t hostpro
 assert_true "side tabs are opencode, lazygit, podman" wait_for 15 side_ready hostproj opencode
 assert_true "terminals session exists" wait_for 10 "$real_tmux" -L terminals has-session -t "=hostproj"
 sleep 1
-assert_contains "editor runs nvim" "$(pane_text -t hostproj:code.{top-left})" "FAKE-nvim"
+assert_contains "editor runs nvim" "$(pane_text -t hostproj:code.'{top-left}')" "FAKE-nvim"
 assert_contains "agent tab runs opencode" "$(pane_text -L side -t hostproj:opencode)" "FAKE-opencode"
 assert_contains "lazygit tab runs lazygit" "$(pane_text -L side -t hostproj:lazygit)" "FAKE-lazygit"
 assert_contains "podman tab runs podman-tui" "$(pane_text -L side -t hostproj:podman)" "FAKE-podman-tui"
@@ -248,8 +248,8 @@ mkdir -p "$root/work/ctr"
 assert_true "container config is generated" test -f "$root/work/ctr/.devcontainer/devcontainer.json"
 assert_true "claude tab exists" wait_for 15 side_ready ctr claude
 sleep 1
-assert_contains "editor runs inside the container" "$(pane_text -t ctr:code.{top-left})" "FAKE-PODMAN-EXEC"
-assert_contains "editor command is nvim" "$(pane_text -t ctr:code.{top-left})" "nvim"
+assert_contains "editor runs inside the container" "$(pane_text -t ctr:code.'{top-left}')" "FAKE-PODMAN-EXEC"
+assert_contains "editor command is nvim" "$(pane_text -t ctr:code.'{top-left}')" "nvim"
 assert_contains "agent runs on the host" "$(pane_text -L side -t ctr:claude)" "FAKE-claude"
 guard_settings="$(cat "$root/work/ctr/.claude/settings.local.json" 2>/dev/null)"
 assert_contains "guard hook is installed" "$guard_settings" "dev-guard"
@@ -261,7 +261,7 @@ mkdir -p "$root/work/ctr3"
 (cd "$root/work/ctr3" && dev-c-o >/dev/null 2>&1)
 assert_true "dev-c-o opens an opencode tab" wait_for 15 side_ready ctr3 opencode
 sleep 1
-assert_contains "dev-c-o editor runs in the container" "$(pane_text -t ctr3:code.{top-left})" "FAKE-PODMAN-EXEC"
+assert_contains "dev-c-o editor runs in the container" "$(pane_text -t ctr3:code.'{top-left}')" "FAKE-PODMAN-EXEC"
 assert_contains "dev-c-o agent runs on the host" "$(pane_text -L side -t ctr3:opencode)" "FAKE-opencode"
 
 echo "== dev-c-o --agent-in-container"
@@ -303,7 +303,7 @@ assert_contains "docker config updates the user id" "$docker_config" '"updateRem
 assert_contains "up uses docker" "$(tail -n 1 "$FAKE_LOG_DIR/devcontainer.log")" "up --docker-path docker"
 assert_true "side panel has a docker tab" wait_for 15 side_ready dock claude docker
 sleep 1
-assert_contains "editor runs through docker exec" "$(pane_text -t dock:code.{top-left})" "FAKE-DOCKER-EXEC"
+assert_contains "editor runs through docker exec" "$(pane_text -t dock:code.'{top-left}')" "FAKE-DOCKER-EXEC"
 assert_contains "docker tab runs lazydocker" "$(pane_text -L side -t dock:docker)" "FAKE-lazydocker"
 assert_contains "main session uses the chosen shell" "$("$real_tmux" show-options -t dock -v default-shell)" "fake-shell"
 dev-stop -k
