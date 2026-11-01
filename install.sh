@@ -5,11 +5,14 @@ repo_dir="$(cd "$(dirname "$0")" && pwd)"
 source_dir="$repo_dir/bin"
 tmux_source_dir="$repo_dir/tmux"
 target_dir="$HOME/.local/bin"
-backup_dir="$HOME/.dev-variants-backup-$(date +%Y%m%d-%H%M%S)"
+backup_dir="$HOME/.bottega-backup-$(date +%Y%m%d-%H%M%S)"
 terminals_config="$HOME/.tmux-terminals.conf"
-user_config="${XDG_CONFIG_HOME:-$HOME/.config}/dev-variants/config"
-block_start="# >>> dev-variants >>>"
-block_end="# <<< dev-variants <<<"
+user_config="${XDG_CONFIG_HOME:-$HOME/.config}/bottega/config"
+block_start="# >>> bottega >>>"
+block_end="# <<< bottega <<<"
+old_user_config="${XDG_CONFIG_HOME:-$HOME/.config}/dev-variants/config"
+old_block_start="# >>> dev-variants >>>"
+old_block_end="# <<< dev-variants <<<"
 minimum_tmux_version="3.2"
 minimum_podman_version="4.3"
 old_script_names=(dev-container dev-opencode)
@@ -215,12 +218,21 @@ install_tmux_configs() {
   done
 }
 
+migrate_old_config() {
+  [ -f "$old_user_config" ] || return 0
+  if [ ! -f "$user_config" ]; then
+    mkdir -p "$(dirname "$user_config")"
+    mv "$old_user_config" "$user_config"
+  fi
+  rm -rf "$(dirname "$old_user_config")"
+}
+
 update_terminals_config() {
   if [ ! -f "$terminals_config" ]; then
     echo "  skipped: $terminals_config does not exist (new tabs will open host shells)"
     return
   fi
-  sed -i "\|$block_start|,\|$block_end|d" "$terminals_config"
+  sed -i "\|$block_start|,\|$block_end|d; \|$old_block_start|,\|$old_block_end|d" "$terminals_config"
   {
     echo "$block_start"
     echo 'bind -n M-n new-window -c "#{pane_current_path}" dev-in'
@@ -252,7 +264,7 @@ set_up_zsh() {
 write_user_config() {
   mkdir -p "$(dirname "$user_config")"
   cat >"$user_config" <<EOF
-# Written by dev-variants install.sh: run it again to change these choices.
+# Written by Bottega install.sh: run it again to change these choices.
 # Environment variables with the same names override these values.
 : "\${DEV_ENVS:=$envs}"
 : "\${DEV_ENGINE:=$engine}"
@@ -339,6 +351,7 @@ report_dependencies() {
 }
 
 parse_arguments "$@"
+migrate_old_config
 load_previous_choices
 choose
 

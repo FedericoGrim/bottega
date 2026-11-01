@@ -1,4 +1,4 @@
-# dev-variants
+# Bottega
 
 Il mio ambiente di sviluppo da terminale: un comando `dev` che apre in tmux LazyVim, l'agente AI (Claude Code o OpenCode), lazygit, un pannello per i container (podman-tui o lazydocker) e i terminali, sul PC o dentro un dev container con Podman o Docker.
 
@@ -56,19 +56,19 @@ Se la sessione esiste già, `dev` ci rientra invece di crearne una nuova.
 ## Installazione
 
 ```bash
-git clone https://github.com/FedericoGrim/dev-variants.git
-cd dev-variants
+git clone https://github.com/FedericoGrim/bottega.git
+cd bottega
 ./install.sh
 ```
 
 `install.sh` prima fa alcune domande (vedi [sotto](#le-scelte-dellinstaller)), poi:
 
-1. copia gli script di `bin/` in `~/.local/bin`. Se c'è già un file diverso con lo stesso nome, prima lo salva in `~/.dev-variants-backup-DATA/`;
+1. copia gli script di `bin/` in `~/.local/bin`. Se c'è già un file diverso con lo stesso nome, prima lo salva in `~/.bottega-backup-DATA/`;
 2. copia le configurazioni di tmux da `tmux/` in `~/.tmux.conf`, `~/.tmux-side.conf` e `~/.tmux-terminals.conf`, **solo se mancano**: quelle che hai già restano come sono;
 3. toglie i vecchi nomi `dev-container` e `dev-opencode` (dopo averli messi nel backup);
 4. aggiunge a `~/.tmux-terminals.conf` un blocco che fa aprire `dev-in` con `Alt+n`;
 5. se hai scelto zsh, installa oh-my-zsh e i plugin;
-6. salva le scelte in `~/.config/dev-variants/config`;
+6. salva le scelte in `~/.config/bottega/config` (se trova la vecchia `~/.config/dev-variants/config`, la sposta lì);
 7. controlla solo i programmi che servono per le tue scelte e, per quelli che mancano, stampa il comando per installarli. Non installa niente da solo, tranne zsh.
 
 Si può rilanciare quando vuoi, per esempio dopo un `git pull` o per cambiare le scelte: propone come risposta predefinita quelle dell'ultima volta, e il blocco in `~/.tmux-terminals.conf` non viene duplicato.
@@ -92,7 +92,7 @@ Senza terminale (per esempio in uno script) o con `--yes` non fa domande e usa l
 ./install.sh --help
 ```
 
-Il file `~/.config/dev-variants/config` si può anche modificare a mano. Ogni valore si può cambiare per un solo comando con una variabile d'ambiente con lo stesso nome, per esempio `DEV_ENGINE=docker dev-c-c`.
+Il file `~/.config/bottega/config` si può anche modificare a mano. Ogni valore si può cambiare per un solo comando con una variabile d'ambiente con lo stesso nome, per esempio `DEV_ENGINE=docker dev-c-c`.
 
 ### Cosa serve
 
@@ -384,18 +384,18 @@ Alla fine stampa i passi da fare a mano: `chsh` per zsh, scegliere il font nel t
 
 ## Disinstallare o tornare indietro
 
-Le versioni precedenti degli script sostituiti stanno in `~/.dev-variants-backup-DATA/`. Per tornare indietro:
+Le versioni precedenti degli script sostituiti stanno in `~/.bottega-backup-DATA/`. Per tornare indietro:
 
 ```bash
-cp ~/.dev-variants-backup-DATA/* ~/.local/bin/
+cp ~/.bottega-backup-DATA/* ~/.local/bin/
 ```
 
 Per togliere tutto:
 
 ```bash
 cd ~/.local/bin && rm -f dctl dev-o dev-c-c dev-c-o dev-guard dev-in dev-personal-setup dev-up
-sed -i '/# >>> dev-variants >>>/,/# <<< dev-variants <<</d' ~/.tmux-terminals.conf
-rm -rf ~/.local/share/dev-personal ~/.cache/dev ~/.config/dev-variants
+sed -i '/# >>> bottega >>>/,/# <<< bottega <<</d' ~/.tmux-terminals.conf
+rm -rf ~/.local/share/dev-personal ~/.cache/dev ~/.config/bottega
 ```
 
 `dev`, `dev-side`, `dev-side-width` e `dev-stop` c'erano anche prima: rimettili dal backup invece di cancellarli.
