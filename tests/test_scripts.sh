@@ -60,6 +60,7 @@ write_fakes() {
 #!/bin/bash
 echo "podman $*" >>"$FAKE_LOG_DIR/podman.log"
 case "$1" in
+  --version) echo "podman version 4.9.3" ;;
   inspect) echo "${FAKE_PODMAN_RUNNING:-true}" ;;
   exec) echo "FAKE-PODMAN-EXEC $*"; if [ -t 1 ]; then sleep 120; fi ;;
 esac
@@ -118,6 +119,46 @@ assert_contains "terminals keeps existing settings" "$(cat "$HOME/.tmux-terminal
 assert_true "missing tmux.conf is installed" test -f "$HOME/.tmux.conf"
 assert_contains "existing tmux-side.conf is kept" "$(cat "$HOME/.tmux-side.conf")" "set -g status-position top"
 assert_true "existing tmux-side.conf is not overwritten" test "$(wc -l <"$HOME/.tmux-side.conf")" = 1
+
+user_config="$HOME/.config/dev-variants/config"
+assert_true "default run writes the config" test -f "$user_config"
+assert_contains "default engine is podman" "$(cat "$user_config")" 'DEV_ENGINE:=podman'
+assert_contains "default envs are all four" "$(cat "$user_config")" 'DEV_ENVS:=dev dev-o dev-c-c dev-c-o'
+
+echo "== install.sh options"
+output="$("$project_root/install.sh" --yes --envs dev-c-c --engine docker --panel lazydocker --shell keep 2>&1)"
+assert_contains "docker choice is saved" "$(cat "$user_config")" 'DEV_ENGINE:=docker'
+assert_contains "panel choice is saved" "$(cat "$user_config")" 'DEV_PANEL:=lazydocker'
+assert_contains "kept shell is saved" "$(cat "$user_config")" "DEV_SHELL:=$SHELL"
+assert_contains "missing docker is reported" "$output" "missing: docker"
+assert_contains "docker install command is shown" "$output" "usermod -aG docker"
+assert_contains "missing lazydocker is reported" "$output" "missing: lazydocker"
+assert_contains "claude is checked for dev-c-c" "$output" "ok: claude"
+assert_not_contains "opencode is not checked without an opencode env" "$output" "opencode"
+assert_contains "devcontainer is checked for container envs" "$output" "ok: devcontainer"
+output="$("$project_root/install.sh" --yes --envs dev-o --shell keep 2>&1)"
+assert_contains "opencode is checked for dev-o" "$output" "ok: opencode"
+assert_not_contains "claude is not checked without a claude env" "$output" "claude"
+assert_not_contains "containers are not checked without a container env" "$output" "devcontainer"
+output="$("$project_root/install.sh" --yes --envs dev-c-o --engine podman --panel podman-tui 2>&1)"
+assert_contains "podman version is checked" "$output" "ok: podman 4.9.3"
+assert_contains "previous shell choice is kept" "$(cat "$user_config")" "DEV_SHELL:=$SHELL"
+assert_contains "podman-tui with docker is rejected" "$("$project_root/install.sh" --yes --engine docker --panel podman-tui 2>&1)" "podman-tui works only with podman"
+assert_contains "unknown env is rejected" "$("$project_root/install.sh" --yes --envs nope 2>&1)" "unknown environment: nope"
+printf '2,4\n2\n1\n2\n' | script -qec "$project_root/install.sh" /dev/null >/dev/null 2>&1
+assert_contains "interactive envs are saved" "$(cat "$user_config")" 'DEV_ENVS:=dev-o dev-c-o'
+assert_contains "interactive engine is saved" "$(cat "$user_config")" 'DEV_ENGINE:=docker'
+assert_contains "interactive panel is saved" "$(cat "$user_config")" 'DEV_PANEL:=lazydocker'
+
+echo "== install.sh with zsh"
+mkdir -p "$HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions" "$HOME/.oh-my-zsh/custom/plugins/fast-syntax-highlighting"
+printf 'plugins=(git)\nsource $ZSH/oh-my-zsh.sh\nalias keep=me\n' >"$HOME/.zshrc"
+"$project_root/install.sh" --yes --envs dev --shell zsh >/dev/null 2>&1
+assert_contains "zsh plugins are set" "$(cat "$HOME/.zshrc")" "plugins=(git zsh-autosuggestions fzf fast-syntax-highlighting)"
+assert_contains "rest of .zshrc is kept" "$(cat "$HOME/.zshrc")" "alias keep=me"
+assert_contains "zsh is the dev shell" "$(cat "$user_config")" "DEV_SHELL:=$fakebin/zsh"
+"$project_root/install.sh" --yes >/dev/null 2>&1
+rm -f "$user_config"
 
 echo "== dev-personal-setup"
 mkdir -p "$root/nvimroot/bin" "$root/nvimroot/share/nvim/runtime" "$root/tools"
