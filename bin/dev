@@ -10,7 +10,16 @@ Usage: dev [options] [directory]
   --agent-in-container   run the agent inside the container instead of on the host
   -h, --help             show this help
 
-Shortcuts: dev-container, dev-opencode
+Commands:
+  dev                  project on the host, with Claude Code
+  dev-o                project on the host, with OpenCode
+  dev-c-c              project in a dev container, with Claude Code on the host
+  dev-c-o              project in a dev container, with OpenCode on the host
+  dev-in [command]     run a command in the project's container (on the host if it has none)
+  dev-up [directory]   start the project's dev container
+  dctl SUBCOMMAND      devcontainer CLI set up for the chosen container engine
+  dev-personal-setup   refresh the Neovim and agent copy mounted in containers
+  dev-stop [-k]        close every dev session; -k also stops the containers
 EOF
 }
 

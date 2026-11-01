@@ -9,6 +9,7 @@ terminals_config="$HOME/.tmux-terminals.conf"
 block_start="# >>> dev-variants >>>"
 block_end="# <<< dev-variants <<<"
 minimum_tmux_version="3.2"
+old_script_names=(dev-container dev-opencode)
 
 say() {
   printf '\n==> %s\n' "$*"
@@ -31,6 +32,17 @@ install_scripts() {
     cp "$source_file" "$destination"
     chmod +x "$destination"
     echo "  installed: $(basename "$source_file")"
+  done
+}
+
+remove_old_scripts() {
+  local name destination
+  for name in "${old_script_names[@]}"; do
+    destination="$target_dir/$name"
+    [ -e "$destination" ] || continue
+    back_up "$destination"
+    rm -f "$destination"
+    echo "  removed: $name"
   done
 }
 
@@ -86,6 +98,7 @@ report_dependencies() {
 
 say "Installing scripts into $target_dir"
 install_scripts
+remove_old_scripts
 
 say "Installing tmux configurations (existing ones are kept)"
 install_tmux_configs
@@ -98,4 +111,4 @@ report_dependencies
 
 [ -d "$backup_dir" ] && say "Replaced files were saved in $backup_dir"
 
-say "Done. Try: dev, dev-container, dev-opencode"
+say "Done. Try: dev --help"

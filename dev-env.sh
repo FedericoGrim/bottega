@@ -28,8 +28,9 @@ FILES=(
   .local/bin/dev-stop
   .local/bin/dev-side
   .local/bin/dev-side-width
-  .local/bin/dev-container
-  .local/bin/dev-opencode
+  .local/bin/dev-c-c
+  .local/bin/dev-c-o
+  .local/bin/dev-o
   .local/bin/dev-up
   .local/bin/dev-guard
   .local/bin/dev-in
