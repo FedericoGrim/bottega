@@ -54,16 +54,20 @@ write_fake_marker() {
 write_fakes() {
   printf '#!/bin/bash\nexec bash "$@"\n' >"$fakebin/zsh"
   chmod +x "$fakebin/zsh"
-  for name in nvim claude opencode lazygit podman-tui; do write_fake_marker "$name"; done
+  for name in nvim claude opencode lazygit podman-tui lazydocker; do write_fake_marker "$name"; done
 
   cat >"$fakebin/podman" <<'EOF'
 #!/bin/bash
 echo "podman $*" >>"$FAKE_LOG_DIR/podman.log"
 case "$1" in
+  --version) echo "podman version 4.9.3" ;;
   inspect) echo "${FAKE_PODMAN_RUNNING:-true}" ;;
   exec) echo "FAKE-PODMAN-EXEC $*"; if [ -t 1 ]; then sleep 120; fi ;;
 esac
 EOF
+
+  sed 's/podman/docker/g; s/PODMAN/DOCKER/g' "$fakebin/podman" >"$fakebin/fake-docker"
+  printf '#!/bin/bash\necho "FAKE-SHELL $*"\nexec bash "$@"\n' >"$fakebin/fake-shell"
 
   cat >"$fakebin/devcontainer" <<'EOF'
 #!/bin/bash
@@ -84,7 +88,7 @@ for argument in "\$@"; do
 done
 exec "$real_tmux" "\$@"
 EOF
-  chmod +x "$fakebin/podman" "$fakebin/devcontainer" "$fakebin/tmux"
+  chmod +x "$fakebin/podman" "$fakebin/fake-docker" "$fakebin/fake-shell" "$fakebin/devcontainer" "$fakebin/tmux"
 }
 
 export FAKE_LOG_DIR="$root/logs"
@@ -96,19 +100,65 @@ printf 'export PATH="%s:%s/.local/bin:$PATH"\n' "$fakebin" "$HOME" >"$HOME/.bash
 printf 'set -g mouse on\n' >"$HOME/.tmux-terminals.conf"
 printf 'set -g status-position top\n' >"$HOME/.tmux-side.conf"
 printf 'old dev\n' >"$HOME/.local/bin/dev"
+printf 'old wrapper\n' >"$HOME/.local/bin/dev-container"
+printf 'old wrapper\n' >"$HOME/.local/bin/dev-opencode"
 
 echo "== install.sh"
 "$project_root/install.sh" >/dev/null 2>&1
 "$project_root/install.sh" >/dev/null 2>&1
-for script in dev dev-in dev-up dev-guard dev-container dev-opencode dev-stop dev-side dev-side-width dctl dev-personal-setup; do
+for script in dev dev-in dev-up dev-guard dev-o dev-c-c dev-c-o dev-stop dev-side dev-side-width dctl dev-personal-setup; do
   assert_true "$script is installed and executable" test -x "$HOME/.local/bin/$script"
 done
+for old_name in dev-container dev-opencode; do
+  assert_true "old $old_name is removed" test ! -e "$HOME/.local/bin/$old_name"
+done
+assert_true "removed wrappers are backed up" bash -c "grep -rlq 'old wrapper' $HOME/.dev-variants-backup-*"
 assert_true "replaced dev was backed up" bash -c "grep -rq 'old dev' $HOME/.dev-variants-backup-*"
 assert_true "terminals block is added once" test "$(grep -c '>>> dev-variants >>>' "$HOME/.tmux-terminals.conf")" = 1
 assert_contains "terminals keeps existing settings" "$(cat "$HOME/.tmux-terminals.conf")" "set -g mouse on"
 assert_true "missing tmux.conf is installed" test -f "$HOME/.tmux.conf"
 assert_contains "existing tmux-side.conf is kept" "$(cat "$HOME/.tmux-side.conf")" "set -g status-position top"
 assert_true "existing tmux-side.conf is not overwritten" test "$(wc -l <"$HOME/.tmux-side.conf")" = 1
+
+user_config="$HOME/.config/dev-variants/config"
+assert_true "default run writes the config" test -f "$user_config"
+assert_contains "default engine is podman" "$(cat "$user_config")" 'DEV_ENGINE:=podman'
+assert_contains "default envs are all four" "$(cat "$user_config")" 'DEV_ENVS:=dev dev-o dev-c-c dev-c-o'
+
+echo "== install.sh options"
+output="$("$project_root/install.sh" --yes --envs dev-c-c --engine docker --panel lazydocker --shell keep 2>&1)"
+assert_contains "docker choice is saved" "$(cat "$user_config")" 'DEV_ENGINE:=docker'
+assert_contains "panel choice is saved" "$(cat "$user_config")" 'DEV_PANEL:=lazydocker'
+assert_contains "kept shell is saved" "$(cat "$user_config")" "DEV_SHELL:=$SHELL"
+assert_contains "missing docker is reported" "$output" "missing: docker"
+assert_contains "docker install command is shown" "$output" "usermod -aG docker"
+assert_contains "chosen panel is checked" "$output" "ok: lazydocker"
+assert_contains "claude is checked for dev-c-c" "$output" "ok: claude"
+assert_not_contains "opencode is not checked without an opencode env" "$output" "opencode"
+assert_contains "devcontainer is checked for container envs" "$output" "ok: devcontainer"
+output="$("$project_root/install.sh" --yes --envs dev-o --shell keep 2>&1)"
+assert_contains "opencode is checked for dev-o" "$output" "ok: opencode"
+assert_not_contains "claude is not checked without a claude env" "$output" "claude"
+assert_not_contains "containers are not checked without a container env" "$output" "devcontainer"
+output="$("$project_root/install.sh" --yes --envs dev-c-o --engine podman --panel podman-tui 2>&1)"
+assert_contains "podman version is checked" "$output" "ok: podman 4.9.3"
+assert_contains "previous shell choice is kept" "$(cat "$user_config")" "DEV_SHELL:=$SHELL"
+assert_contains "podman-tui with docker is rejected" "$("$project_root/install.sh" --yes --engine docker --panel podman-tui 2>&1)" "podman-tui works only with podman"
+assert_contains "unknown env is rejected" "$("$project_root/install.sh" --yes --envs nope 2>&1)" "unknown environment: nope"
+printf '2,4\n2\n2\n' | script -qec "$project_root/install.sh" /dev/null >/dev/null 2>&1
+assert_contains "interactive envs are saved" "$(cat "$user_config")" 'DEV_ENVS:=dev-o dev-c-o'
+assert_contains "interactive engine is saved" "$(cat "$user_config")" 'DEV_ENGINE:=docker'
+assert_contains "interactive panel is saved" "$(cat "$user_config")" 'DEV_PANEL:=lazydocker'
+
+echo "== install.sh with zsh"
+mkdir -p "$HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions" "$HOME/.oh-my-zsh/custom/plugins/fast-syntax-highlighting"
+printf 'plugins=(git)\nsource $ZSH/oh-my-zsh.sh\nalias keep=me\n' >"$HOME/.zshrc"
+"$project_root/install.sh" --yes --envs dev --shell zsh >/dev/null 2>&1
+assert_contains "zsh plugins are set" "$(cat "$HOME/.zshrc")" "plugins=(git zsh-autosuggestions fzf fast-syntax-highlighting)"
+assert_contains "rest of .zshrc is kept" "$(cat "$HOME/.zshrc")" "alias keep=me"
+assert_contains "zsh is the dev shell" "$(cat "$user_config")" "DEV_SHELL:=$fakebin/zsh"
+"$project_root/install.sh" --yes >/dev/null 2>&1
+rm -f "$user_config"
 
 echo "== dev-personal-setup"
 mkdir -p "$root/nvimroot/bin" "$root/nvimroot/share/nvim/runtime" "$root/tools"
@@ -161,10 +211,14 @@ assert_contains "stopped container is reported" "$message" "not running"
 
 echo "== dev (options)"
 assert_contains "unknown agent is rejected" "$(cd "$root/work/plain" && dev --agent foo 2>&1)" "unknown agent"
+help_text="$(dev --help)"
+for command_name in dev-o dev-c-c dev-c-o dev-in dev-stop dev-personal-setup; do
+  assert_contains "help lists $command_name" "$help_text" "$command_name"
+done
 assert_contains "unknown option is rejected" "$(cd "$root/work/plain" && dev --nope 2>&1)" "unknown option"
 
 side_windows() { "$real_tmux" -L side list-windows -t "=$1" -F '#{window_name}' 2>/dev/null | tr '\n' ' '; }
-side_ready() { [ "$(side_windows "$1")" = "$2 lazygit podman " ]; }
+side_ready() { [ "$(side_windows "$1")" = "$2 lazygit ${3:-podman} " ]; }
 pane_text() {
   local socket_args=()
   if [ "$1" = "-L" ]; then
@@ -174,37 +228,45 @@ pane_text() {
   "$real_tmux" "${socket_args[@]}" capture-pane -p -J "$@"
 }
 
-echo "== dev (host project, opencode)"
+echo "== dev-o (host project)"
 mkdir -p "$root/work/hostproj"
-(cd "$root/work/hostproj" && dev --agent opencode >/dev/null 2>&1)
+(cd "$root/work/hostproj" && dev-o >/dev/null 2>&1)
 assert_true "main session exists" "$real_tmux" has-session -t "=hostproj"
 assert_true "main window has 3 panes" test "$("$real_tmux" list-panes -t hostproj:code | wc -l)" = 3
 assert_true "side tabs are opencode, lazygit, podman" wait_for 15 side_ready hostproj opencode
 assert_true "terminals session exists" wait_for 10 "$real_tmux" -L terminals has-session -t "=hostproj"
 sleep 1
-assert_contains "editor runs nvim" "$(pane_text -t hostproj:code.{top-left})" "FAKE-nvim"
+assert_contains "editor runs nvim" "$(pane_text -t hostproj:code.'{top-left}')" "FAKE-nvim"
 assert_contains "agent tab runs opencode" "$(pane_text -L side -t hostproj:opencode)" "FAKE-opencode"
 assert_contains "lazygit tab runs lazygit" "$(pane_text -L side -t hostproj:lazygit)" "FAKE-lazygit"
 assert_contains "podman tab runs podman-tui" "$(pane_text -L side -t hostproj:podman)" "FAKE-podman-tui"
 assert_true "no guard is installed for host projects" test ! -e "$root/work/hostproj/.claude/settings.local.json"
 
-echo "== dev-container (agent on the host)"
+echo "== dev-c-c (agent on the host)"
 mkdir -p "$root/work/ctr"
-(cd "$root/work/ctr" && dev-container >/dev/null 2>&1)
+(cd "$root/work/ctr" && dev-c-c >/dev/null 2>&1)
 assert_true "container config is generated" test -f "$root/work/ctr/.devcontainer/devcontainer.json"
 assert_true "claude tab exists" wait_for 15 side_ready ctr claude
 sleep 1
-assert_contains "editor runs inside the container" "$(pane_text -t ctr:code.{top-left})" "FAKE-PODMAN-EXEC"
-assert_contains "editor command is nvim" "$(pane_text -t ctr:code.{top-left})" "nvim"
+assert_contains "editor runs inside the container" "$(pane_text -t ctr:code.'{top-left}')" "FAKE-PODMAN-EXEC"
+assert_contains "editor command is nvim" "$(pane_text -t ctr:code.'{top-left}')" "nvim"
 assert_contains "agent runs on the host" "$(pane_text -L side -t ctr:claude)" "FAKE-claude"
 guard_settings="$(cat "$root/work/ctr/.claude/settings.local.json" 2>/dev/null)"
 assert_contains "guard hook is installed" "$guard_settings" "dev-guard"
 assert_contains "dev-in is pre-approved" "$guard_settings" "Bash(dev-in:*)"
 assert_true "terminals first tab is a container shell" wait_for 10 bash -c "'$real_tmux' -L terminals capture-pane -p -J -S - -t ctr | grep -q FAKE-PODMAN-EXEC"
 
-echo "== dev-opencode --agent-in-container"
+echo "== dev-c-o"
+mkdir -p "$root/work/ctr3"
+(cd "$root/work/ctr3" && dev-c-o >/dev/null 2>&1)
+assert_true "dev-c-o opens an opencode tab" wait_for 15 side_ready ctr3 opencode
+sleep 1
+assert_contains "dev-c-o editor runs in the container" "$(pane_text -t ctr3:code.'{top-left}')" "FAKE-PODMAN-EXEC"
+assert_contains "dev-c-o agent runs on the host" "$(pane_text -L side -t ctr3:opencode)" "FAKE-opencode"
+
+echo "== dev-c-o --agent-in-container"
 mkdir -p "$root/work/ctr2"
-(cd "$root/work/ctr2" && dev-opencode --agent-in-container >/dev/null 2>&1)
+(cd "$root/work/ctr2" && dev-c-o --agent-in-container >/dev/null 2>&1)
 assert_true "opencode tab exists" wait_for 15 side_ready ctr2 opencode
 sleep 1
 agent_text="$(pane_text -L side -t ctr2:opencode)"
@@ -223,6 +285,30 @@ echo "== dev-stop -k"
 dev-stop -k
 assert_contains "containers are stopped" "$(cat "$FAKE_LOG_DIR/podman.log")" "podman stop abc123"
 assert_true "tmux servers are gone" wait_for 10 bash -c "! '$real_tmux' has-session 2>/dev/null"
+
+echo "== docker engine and shell from the config file"
+mkdir -p "$HOME/.config/dev-variants"
+ln -sf "$fakebin/fake-docker" "$fakebin/docker"
+cat >"$HOME/.config/dev-variants/config" <<EOF
+: "\${DEV_ENGINE:=docker}"
+: "\${DEV_PANEL:=lazydocker}"
+: "\${DEV_SHELL:=$fakebin/fake-shell}"
+EOF
+assert_contains "host shell comes from the config" "$(cd "$root/work/plain" && dev-in </dev/null)" "FAKE-SHELL"
+mkdir -p "$root/work/dock"
+(cd "$root/work/dock" && dev-c-c >/dev/null 2>&1)
+docker_config="$(cat "$root/work/dock/.devcontainer/devcontainer.json")"
+assert_not_contains "docker config has no keep-id" "$docker_config" "keep-id"
+assert_contains "docker config updates the user id" "$docker_config" '"updateRemoteUserUID": true'
+assert_contains "up uses docker" "$(tail -n 1 "$FAKE_LOG_DIR/devcontainer.log")" "up --docker-path docker"
+assert_true "side panel has a docker tab" wait_for 15 side_ready dock claude docker
+sleep 1
+assert_contains "editor runs through docker exec" "$(pane_text -t dock:code.'{top-left}')" "FAKE-DOCKER-EXEC"
+assert_contains "docker tab runs lazydocker" "$(pane_text -L side -t dock:docker)" "FAKE-lazydocker"
+assert_contains "main session uses the chosen shell" "$("$real_tmux" show-options -t dock -v default-shell)" "fake-shell"
+dev-stop -k
+assert_contains "docker containers are stopped" "$(cat "$FAKE_LOG_DIR/docker.log")" "docker stop abc123"
+wait_for 10 bash -c "! '$real_tmux' has-session 2>/dev/null"
 
 "$real_tmux" kill-server 2>/dev/null || true
 "$real_tmux" -L side kill-server 2>/dev/null || true

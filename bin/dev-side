@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+config_file="${XDG_CONFIG_HOME:-$HOME/.config}/dev-variants/config"
+# shellcheck source=/dev/null
+[ -f "$config_file" ] && . "$config_file"
+
 project_dir="$1"
 session_name="$2"
 agent="${DEV_AGENT:-claude}"
 agent_in_container="${DEV_AGENT_IN_CONTAINER:-0}"
+engine="${DEV_ENGINE:-podman}"
+panel="${DEV_PANEL:-podman-tui}"
+shell="$(command -v "${DEV_SHELL:-zsh}" || echo "${SHELL:-/bin/sh}")"
 
 side_tmux=(env -u TMUX tmux -L side -f "$HOME/.tmux-side.conf")
 main_tmux="${TMUX:-}"
@@ -16,19 +23,23 @@ if [ "$agent_in_container" = "1" ]; then
   agent_command="dev-in $agent"
 fi
 
-podman_command="podman-tui"
-if ! command -v podman-tui >/dev/null 2>&1; then
-  podman_command="watch -n 2 podman ps -a"
+panel_command="$panel"
+if [ "$panel" = "lazydocker" ] && [ "$engine" = "podman" ]; then
+  panel_command="DOCKER_HOST=unix://${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock lazydocker"
+fi
+if ! command -v "$panel" >/dev/null 2>&1; then
+  panel_command="watch -n 2 $engine ps -a"
 fi
 
 if ! "${side_tmux[@]}" has-session -t "=$session_name" 2>/dev/null; then
   "${side_tmux[@]}" new-session -d -s "$session_name" -n "$agent" -c "$project_dir" \
-    -e "DEV_DIR=$project_dir" -x "$(tput cols)" -y "$(($(tput lines) - 1))"
+    -e "DEV_DIR=$project_dir" -x "$(tput cols)" -y "$(($(tput lines) - 1))" "$shell"
+  "${side_tmux[@]}" set-option -t "=$session_name:" default-shell "$shell"
   "${side_tmux[@]}" new-window -t "$session_name" -n lazygit -c "$project_dir"
-  "${side_tmux[@]}" new-window -t "$session_name" -n podman -c "$project_dir"
+  "${side_tmux[@]}" new-window -t "$session_name" -n "$engine" -c "$project_dir"
   "${side_tmux[@]}" send-keys -t "$session_name:$agent" "$agent_command" Enter
   "${side_tmux[@]}" send-keys -t "$session_name:lazygit" "lazygit" Enter
-  "${side_tmux[@]}" send-keys -t "$session_name:podman" "$podman_command" Enter
+  "${side_tmux[@]}" send-keys -t "$session_name:$engine" "$panel_command" Enter
   "${side_tmux[@]}" select-window -t "$session_name:$agent"
 fi
 

@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+config_file="${XDG_CONFIG_HOME:-$HOME/.config}/dev-variants/config"
+# shellcheck source=/dev/null
+[ -f "$config_file" ] && . "$config_file"
+
 state_dir="$HOME/.cache/dev"
+engine="${DEV_ENGINE:-podman}"
 stop_containers=0
 
 [ "${1:-}" = "-k" ] && stop_containers=1
@@ -11,7 +16,7 @@ stop_all_containers() {
   for state_file in "$state_dir"/*.json; do
     [ -f "$state_file" ] || continue
     container_id="$(jq -r '.containerId // empty' "$state_file")"
-    [ -n "$container_id" ] && podman stop "$container_id" >/dev/null 2>&1 || true
+    [ -n "$container_id" ] && "$engine" stop "$container_id" >/dev/null 2>&1 || true
   done
 }
 

@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+config_file="${XDG_CONFIG_HOME:-$HOME/.config}/dev-variants/config"
+# shellcheck source=/dev/null
+[ -f "$config_file" ] && . "$config_file"
+
 subcommand="${1:?usage: dctl <devcontainer-subcommand> [arguments]}"
 shift
 
-runtime_flags=(--docker-path podman)
+runtime_flags=(--docker-path "${DEV_ENGINE:-podman}")
 if command -v docker-compose >/dev/null 2>&1; then
   runtime_flags+=(--docker-compose-path docker-compose)
 fi

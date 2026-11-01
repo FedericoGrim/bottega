@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+config_file="${XDG_CONFIG_HOME:-$HOME/.config}/dev-variants/config"
+# shellcheck source=/dev/null
+[ -f "$config_file" ] && . "$config_file"
+
 usage() {
   cat <<'EOF'
 Usage: dev [options] [directory]
@@ -10,7 +14,16 @@ Usage: dev [options] [directory]
   --agent-in-container   run the agent inside the container instead of on the host
   -h, --help             show this help
 
-Shortcuts: dev-container, dev-opencode
+Commands:
+  dev                  project on the host, with Claude Code
+  dev-o                project on the host, with OpenCode
+  dev-c-c              project in a dev container, with Claude Code on the host
+  dev-c-o              project in a dev container, with OpenCode on the host
+  dev-in [command]     run a command in the project's container (on the host if it has none)
+  dev-up [directory]   start the project's dev container
+  dctl SUBCOMMAND      devcontainer CLI set up for the chosen container engine
+  dev-personal-setup   refresh the Neovim and agent copy mounted in containers
+  dev-stop [-k]        close every dev session; -k also stops the containers
 EOF
 }
 
@@ -20,6 +33,7 @@ die() {
 }
 
 use_container=0
+shell="$(command -v "${DEV_SHELL:-zsh}" || echo "${SHELL:-/bin/sh}")"
 agent="claude"
 agent_in_container=0
 
@@ -63,13 +77,15 @@ fi
 
 printf -v quoted_dir '%q' "$project_dir"
 printf -v quoted_name '%q' "$session_name"
+printf -v quoted_shell '%q' "$shell"
 
-terminals_command="env -u TMUX tmux -L terminals -f ~/.tmux-terminals.conf new-session -A -s $quoted_name -e DEV_DIR=$quoted_dir dev-in; exec zsh"
-side_command="DEV_AGENT=$agent DEV_AGENT_IN_CONTAINER=$agent_in_container $HOME/.local/bin/dev-side $quoted_dir $quoted_name; exec zsh"
+terminals_command="env -u TMUX tmux -L terminals -f ~/.tmux-terminals.conf new-session -A -s $quoted_name -e DEV_DIR=$quoted_dir dev-in; exec $quoted_shell"
+side_command="DEV_AGENT=$agent DEV_AGENT_IN_CONTAINER=$agent_in_container $HOME/.local/bin/dev-side $quoted_dir $quoted_name; exec $quoted_shell"
 
 if ! tmux has-session -t "=$session_name" 2>/dev/null; then
   editor_pane="$(tmux new-session -d -s "$session_name" -c "$project_dir" -n code \
-    -x "$(tput cols)" -y "$(tput lines)" -P -F '#{pane_id}')"
+    -x "$(tput cols)" -y "$(tput lines)" -P -F '#{pane_id}' "$shell")"
+  tmux set-option -t "=$session_name:" default-shell "$shell"
   tmux split-window -h -l 25% -t "$editor_pane" -c "$project_dir" "$side_command"
   tmux split-window -v -l 20% -t "$editor_pane" -c "$project_dir" "$terminals_command"
   tmux send-keys -t "$editor_pane" "DEV_DIR=$quoted_dir dev-in nvim" Enter

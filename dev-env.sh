@@ -28,8 +28,9 @@ FILES=(
   .local/bin/dev-stop
   .local/bin/dev-side
   .local/bin/dev-side-width
-  .local/bin/dev-container
-  .local/bin/dev-opencode
+  .local/bin/dev-c-c
+  .local/bin/dev-c-o
+  .local/bin/dev-o
   .local/bin/dev-up
   .local/bin/dev-guard
   .local/bin/dev-in
@@ -302,7 +303,7 @@ install_font() {
 install_ohmyzsh() {
   say "oh-my-zsh e plugin"
   if [ ! -d "$HOME/.oh-my-zsh" ]; then
-    RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+    RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
   fi
   local custom="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
   if [ ! -d "$custom/plugins/zsh-autosuggestions" ]; then

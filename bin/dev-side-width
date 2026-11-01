@@ -9,7 +9,7 @@ case "$window_name" in
   claude) width="30%" ;;
   opencode) width="35%" ;;
   lazygit) width="40%" ;;
-  podman) width="55%" ;;
+  podman | docker) width="55%" ;;
   *) width="" ;;
 esac
 
