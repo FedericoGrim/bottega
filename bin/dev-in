@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+config_file="${XDG_CONFIG_HOME:-$HOME/.config}/dev-variants/config"
+# shellcheck source=/dev/null
+[ -f "$config_file" ] && . "$config_file"
+
 state_dir="$HOME/.cache/dev"
 personal_mount="/opt/personal"
+engine="${DEV_ENGINE:-podman}"
 
 state_file_name_for() {
   basename "$1" | tr '.:' '__'
@@ -23,12 +28,12 @@ find_state_file() {
 }
 
 run_on_host() {
-  [ $# -eq 0 ] && exec zsh
+  [ $# -eq 0 ] && exec "$(command -v "${DEV_SHELL:-zsh}" || echo "${SHELL:-/bin/sh}")"
   exec "$@"
 }
 
 container_is_running() {
-  [ "$(podman inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" = "true" ]
+  [ "$("$engine" inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" = "true" ]
 }
 
 relative_path_inside() {
@@ -56,7 +61,7 @@ if [ -t 0 ] && [ -t 1 ]; then
   tty_flags=(-it)
 fi
 
-exec podman exec "${tty_flags[@]}" -u "$remote_user" \
+exec "$engine" exec "${tty_flags[@]}" -u "$remote_user" \
   -w "$remote_root$(relative_path_inside "$local_root")" \
   -e TERM="${TERM:-xterm-256color}" -e COLORTERM=truecolor \
   -e XDG_CONFIG_HOME="$personal_mount/config" -e XDG_DATA_HOME="$personal_mount/data" \

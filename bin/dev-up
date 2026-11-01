@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+config_file="${XDG_CONFIG_HOME:-$HOME/.config}/dev-variants/config"
+# shellcheck source=/dev/null
+[ -f "$config_file" ] && . "$config_file"
+
 project_dir="$(realpath "${1:-$PWD}")"
 project_name="$(basename "$project_dir" | tr '.:' '__')"
 state_dir="$HOME/.cache/dev"
 state_file="$state_dir/$project_name.json"
 personal_dir="${DEV_PERSONAL_DIR:-$HOME/.local/share/dev-personal}"
+engine="${DEV_ENGINE:-podman}"
 
 die() {
   echo "dev-up: $*" >&2
@@ -18,19 +23,23 @@ has_devcontainer_config() {
 
 write_default_config() {
   mkdir -p "$project_dir/.devcontainer"
-  jq -n --arg name "$project_name" '{
+  jq -n --arg name "$project_name" --arg engine "$engine" '{
     name: $name,
     image: "mcr.microsoft.com/devcontainers/base:ubuntu",
     remoteUser: "vscode",
-    containerUser: "vscode",
+    containerUser: "vscode"
+  } + (if $engine == "podman" then {
     updateRemoteUserUID: false,
-    runArgs: ["--userns=keep-id:uid=1000,gid=1000"],
+    runArgs: ["--userns=keep-id:uid=1000,gid=1000"]
+  } else {
+    updateRemoteUserUID: true
+  } end) + {
     postCreateCommand: "sudo apt-get update && sudo apt-get install -y ripgrep fd-find fzf build-essential unzip && sudo ln -sf /usr/bin/fdfind /usr/local/bin/fd"
   }' >"$project_dir/.devcontainer/devcontainer.json"
   echo "dev-up: generated .devcontainer/devcontainer.json, adjust it to the project" >&2
 }
 
-for required in jq podman devcontainer; do
+for required in jq "$engine" devcontainer; do
   command -v "$required" >/dev/null 2>&1 || die "$required is not installed"
 done
 

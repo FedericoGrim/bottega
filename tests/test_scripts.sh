@@ -66,7 +66,7 @@ esac
 EOF
 
   sed 's/podman/docker/g; s/PODMAN/DOCKER/g' "$fakebin/podman" >"$fakebin/fake-docker"
-  printf '#!/bin/bash\necho "FAKE-SHELL $*"\n' >"$fakebin/fake-shell"
+  printf '#!/bin/bash\necho "FAKE-SHELL $*"\nexec bash "$@"\n' >"$fakebin/fake-shell"
 
   cat >"$fakebin/devcontainer" <<'EOF'
 #!/bin/bash
