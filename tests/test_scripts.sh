@@ -112,15 +112,15 @@ done
 for old_name in dev-container dev-opencode; do
   assert_true "old $old_name is removed" test ! -e "$HOME/.local/bin/$old_name"
 done
-assert_true "removed wrappers are backed up" bash -c "grep -rlq 'old wrapper' $HOME/.dev-variants-backup-*"
-assert_true "replaced dev was backed up" bash -c "grep -rq 'old dev' $HOME/.dev-variants-backup-*"
-assert_true "terminals block is added once" test "$(grep -c '>>> dev-variants >>>' "$HOME/.tmux-terminals.conf")" = 1
+assert_true "removed wrappers are backed up" bash -c "grep -rlq 'old wrapper' $HOME/.bottega-backup-*"
+assert_true "replaced dev was backed up" bash -c "grep -rq 'old dev' $HOME/.bottega-backup-*"
+assert_true "terminals block is added once" test "$(grep -c '>>> bottega >>>' "$HOME/.tmux-terminals.conf")" = 1
 assert_contains "terminals keeps existing settings" "$(cat "$HOME/.tmux-terminals.conf")" "set -g mouse on"
 assert_true "missing tmux.conf is installed" test -f "$HOME/.tmux.conf"
 assert_contains "existing tmux-side.conf is kept" "$(cat "$HOME/.tmux-side.conf")" "set -g status-position top"
 assert_true "existing tmux-side.conf is not overwritten" test "$(wc -l <"$HOME/.tmux-side.conf")" = 1
 
-user_config="$HOME/.config/dev-variants/config"
+user_config="$HOME/.config/bottega/config"
 assert_true "default run writes the config" test -f "$user_config"
 assert_contains "default engine is podman" "$(cat "$user_config")" 'DEV_ENGINE:=podman'
 assert_contains "default envs are all four" "$(cat "$user_config")" 'DEV_ENVS:=dev dev-o dev-c-c dev-c-o'
@@ -158,6 +158,17 @@ assert_contains "zsh plugins are set" "$(cat "$HOME/.zshrc")" "plugins=(git zsh-
 assert_contains "rest of .zshrc is kept" "$(cat "$HOME/.zshrc")" "alias keep=me"
 assert_contains "zsh is the dev shell" "$(cat "$user_config")" "DEV_SHELL:=$fakebin/zsh"
 "$project_root/install.sh" --yes >/dev/null 2>&1
+rm -f "$user_config"
+
+echo "== install.sh migrates the dev-variants names"
+mkdir -p "$HOME/.config/dev-variants"
+printf ': "${DEV_ENGINE:=docker}"\n' >"$HOME/.config/dev-variants/config"
+printf '# >>> dev-variants >>>\nbind -n M-n new-window dev-in\n# <<< dev-variants <<<\n' >>"$HOME/.tmux-terminals.conf"
+"$project_root/install.sh" --yes >/dev/null 2>&1
+assert_contains "old config is moved" "$(cat "$user_config")" "DEV_ENGINE:=docker"
+assert_true "old config dir is gone" test ! -e "$HOME/.config/dev-variants"
+assert_not_contains "old tmux block is removed" "$(cat "$HOME/.tmux-terminals.conf")" "dev-variants"
+assert_true "new tmux block is there once" test "$(grep -c '>>> bottega >>>' "$HOME/.tmux-terminals.conf")" = 1
 rm -f "$user_config"
 
 echo "== dev-personal-setup"
@@ -287,9 +298,9 @@ assert_contains "containers are stopped" "$(cat "$FAKE_LOG_DIR/podman.log")" "po
 assert_true "tmux servers are gone" wait_for 10 bash -c "! '$real_tmux' has-session 2>/dev/null"
 
 echo "== docker engine and shell from the config file"
-mkdir -p "$HOME/.config/dev-variants"
+mkdir -p "$HOME/.config/bottega"
 ln -sf "$fakebin/fake-docker" "$fakebin/docker"
-cat >"$HOME/.config/dev-variants/config" <<EOF
+cat >"$HOME/.config/bottega/config" <<EOF
 : "\${DEV_ENGINE:=docker}"
 : "\${DEV_PANEL:=lazydocker}"
 : "\${DEV_SHELL:=$fakebin/fake-shell}"
