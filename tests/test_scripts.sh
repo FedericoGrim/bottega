@@ -96,13 +96,19 @@ printf 'export PATH="%s:%s/.local/bin:$PATH"\n' "$fakebin" "$HOME" >"$HOME/.bash
 printf 'set -g mouse on\n' >"$HOME/.tmux-terminals.conf"
 printf 'set -g status-position top\n' >"$HOME/.tmux-side.conf"
 printf 'old dev\n' >"$HOME/.local/bin/dev"
+printf 'old wrapper\n' >"$HOME/.local/bin/dev-container"
+printf 'old wrapper\n' >"$HOME/.local/bin/dev-opencode"
 
 echo "== install.sh"
 "$project_root/install.sh" >/dev/null 2>&1
 "$project_root/install.sh" >/dev/null 2>&1
-for script in dev dev-in dev-up dev-guard dev-container dev-opencode dev-stop dev-side dev-side-width dctl dev-personal-setup; do
+for script in dev dev-in dev-up dev-guard dev-o dev-c-c dev-c-o dev-stop dev-side dev-side-width dctl dev-personal-setup; do
   assert_true "$script is installed and executable" test -x "$HOME/.local/bin/$script"
 done
+for old_name in dev-container dev-opencode; do
+  assert_true "old $old_name is removed" test ! -e "$HOME/.local/bin/$old_name"
+done
+assert_true "removed wrappers are backed up" bash -c "grep -rlq 'old wrapper' $HOME/.dev-variants-backup-*"
 assert_true "replaced dev was backed up" bash -c "grep -rq 'old dev' $HOME/.dev-variants-backup-*"
 assert_true "terminals block is added once" test "$(grep -c '>>> dev-variants >>>' "$HOME/.tmux-terminals.conf")" = 1
 assert_contains "terminals keeps existing settings" "$(cat "$HOME/.tmux-terminals.conf")" "set -g mouse on"
@@ -161,6 +167,10 @@ assert_contains "stopped container is reported" "$message" "not running"
 
 echo "== dev (options)"
 assert_contains "unknown agent is rejected" "$(cd "$root/work/plain" && dev --agent foo 2>&1)" "unknown agent"
+help_text="$(dev --help)"
+for command_name in dev-o dev-c-c dev-c-o dev-in dev-stop dev-personal-setup; do
+  assert_contains "help lists $command_name" "$help_text" "$command_name"
+done
 assert_contains "unknown option is rejected" "$(cd "$root/work/plain" && dev --nope 2>&1)" "unknown option"
 
 side_windows() { "$real_tmux" -L side list-windows -t "=$1" -F '#{window_name}' 2>/dev/null | tr '\n' ' '; }
@@ -174,9 +184,9 @@ pane_text() {
   "$real_tmux" "${socket_args[@]}" capture-pane -p -J "$@"
 }
 
-echo "== dev (host project, opencode)"
+echo "== dev-o (host project)"
 mkdir -p "$root/work/hostproj"
-(cd "$root/work/hostproj" && dev --agent opencode >/dev/null 2>&1)
+(cd "$root/work/hostproj" && dev-o >/dev/null 2>&1)
 assert_true "main session exists" "$real_tmux" has-session -t "=hostproj"
 assert_true "main window has 3 panes" test "$("$real_tmux" list-panes -t hostproj:code | wc -l)" = 3
 assert_true "side tabs are opencode, lazygit, podman" wait_for 15 side_ready hostproj opencode
@@ -188,9 +198,9 @@ assert_contains "lazygit tab runs lazygit" "$(pane_text -L side -t hostproj:lazy
 assert_contains "podman tab runs podman-tui" "$(pane_text -L side -t hostproj:podman)" "FAKE-podman-tui"
 assert_true "no guard is installed for host projects" test ! -e "$root/work/hostproj/.claude/settings.local.json"
 
-echo "== dev-container (agent on the host)"
+echo "== dev-c-c (agent on the host)"
 mkdir -p "$root/work/ctr"
-(cd "$root/work/ctr" && dev-container >/dev/null 2>&1)
+(cd "$root/work/ctr" && dev-c-c >/dev/null 2>&1)
 assert_true "container config is generated" test -f "$root/work/ctr/.devcontainer/devcontainer.json"
 assert_true "claude tab exists" wait_for 15 side_ready ctr claude
 sleep 1
@@ -202,9 +212,17 @@ assert_contains "guard hook is installed" "$guard_settings" "dev-guard"
 assert_contains "dev-in is pre-approved" "$guard_settings" "Bash(dev-in:*)"
 assert_true "terminals first tab is a container shell" wait_for 10 bash -c "'$real_tmux' -L terminals capture-pane -p -J -S - -t ctr | grep -q FAKE-PODMAN-EXEC"
 
-echo "== dev-opencode --agent-in-container"
+echo "== dev-c-o"
+mkdir -p "$root/work/ctr3"
+(cd "$root/work/ctr3" && dev-c-o >/dev/null 2>&1)
+assert_true "dev-c-o opens an opencode tab" wait_for 15 side_ready ctr3 opencode
+sleep 1
+assert_contains "dev-c-o editor runs in the container" "$(pane_text -t ctr3:code.{top-left})" "FAKE-PODMAN-EXEC"
+assert_contains "dev-c-o agent runs on the host" "$(pane_text -L side -t ctr3:opencode)" "FAKE-opencode"
+
+echo "== dev-c-o --agent-in-container"
 mkdir -p "$root/work/ctr2"
-(cd "$root/work/ctr2" && dev-opencode --agent-in-container >/dev/null 2>&1)
+(cd "$root/work/ctr2" && dev-c-o --agent-in-container >/dev/null 2>&1)
 assert_true "opencode tab exists" wait_for 15 side_ready ctr2 opencode
 sleep 1
 agent_text="$(pane_text -L side -t ctr2:opencode)"
