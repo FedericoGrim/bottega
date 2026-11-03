@@ -15,6 +15,7 @@ ALL_TOPICS_LABEL = "Tutti"
 MAX_COMMAND_WIDTH = 48
 UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
 SEPARATOR_ROW = re.compile(r"^\|[\s:|-]+\|$")
+CODE_SPAN = re.compile(r"(`+) ?(.*?) ?\1")
 
 RESET = "\x1b[0m"
 DIM = "\x1b[38;2;86;95;137m"
@@ -58,8 +59,11 @@ def cheatsheet_directory():
 
 
 def split_cells(row):
-    cells = UNESCAPED_PIPE.split(row.strip()[1:-1])
-    return [cell.replace("\\|", "|").replace("`", "").strip() for cell in cells]
+    return [cell.replace("\\|", "|").strip() for cell in UNESCAPED_PIPE.split(row.strip()[1:-1])]
+
+
+def without_code_marks(text):
+    return CODE_SPAN.sub(r"\2", text)
 
 
 def parse_cheatsheet(text, default_title=""):
@@ -79,7 +83,7 @@ def parse_cheatsheet(text, default_title=""):
             continue
         cells = split_cells(line)
         if len(cells) >= 2:
-            topic.entries.append(Entry(section, cells[0], cells[1]))
+            topic.entries.append(Entry(section, without_code_marks(cells[0]), without_code_marks(cells[1])))
     return topic
 
 
