@@ -68,6 +68,10 @@ class ParseCheatsheetTest(unittest.TestCase):
         sections = [entry.section for entry in self.topic.entries]
         self.assertEqual(sections, ["Branch", "Branch", "Storia"])
 
+    def test_keeps_a_backtick_that_is_the_command_itself(self):
+        topic = self.docs.parse_cheatsheet("| Tasto | Cosa fa |\n| --- | --- |\n| `` ` `` | cambia vista |\n")
+        self.assertEqual(topic.entries[0].command, "`")
+
     def test_removes_backticks_from_descriptions(self):
         self.assertEqual(self.topic.entries[1].description, "elimina un branch unito")
 
