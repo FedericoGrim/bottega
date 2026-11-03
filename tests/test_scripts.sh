@@ -10,7 +10,7 @@ checks=0
 export HOME="$root/home"
 export TMUX_TMPDIR="$root/tmux"
 export TERM="xterm-256color"
-unset TMUX TMUX_PANE DEV_DIR DEV_PERSONAL_DIR
+unset TMUX TMUX_PANE DEV_DIR DEV_PERSONAL_DIR WAYLAND_DISPLAY
 mkdir -p "$HOME/.local/bin" "$HOME/.cache" "$TMUX_TMPDIR" "$root/fakebin" "$root/work"
 
 fakebin="$root/fakebin"
@@ -102,11 +102,13 @@ printf 'set -g status-position top\n' >"$HOME/.tmux-side.conf"
 printf 'old dev\n' >"$HOME/.local/bin/dev"
 printf 'old wrapper\n' >"$HOME/.local/bin/dev-container"
 printf 'old wrapper\n' >"$HOME/.local/bin/dev-opencode"
+mkdir -p "$HOME/.local/share/bottega/cheatsheet"
+printf '# Removed topic\n' >"$HOME/.local/share/bottega/cheatsheet/removed.md"
 
 echo "== install.sh"
 "$project_root/install.sh" >/dev/null 2>&1
 "$project_root/install.sh" >/dev/null 2>&1
-for script in dev dev-in dev-up dev-guard dev-o dev-c-c dev-c-o dev-stop dev-side dev-side-width dctl dev-personal-setup; do
+for script in dev dev-in dev-up dev-guard dev-o dev-c-c dev-c-o dev-stop dev-side dev-side-width dctl dev-personal-setup dev-docs; do
   assert_true "$script is installed and executable" test -x "$HOME/.local/bin/$script"
 done
 for old_name in dev-container dev-opencode; do
@@ -117,6 +119,11 @@ assert_true "replaced dev was backed up" bash -c "grep -rq 'old dev' $HOME/.bott
 assert_true "terminals block is added once" test "$(grep -c '>>> bottega >>>' "$HOME/.tmux-terminals.conf")" = 1
 assert_contains "terminals keeps existing settings" "$(cat "$HOME/.tmux-terminals.conf")" "set -g mouse on"
 assert_true "missing tmux.conf is installed" test -f "$HOME/.tmux.conf"
+assert_true "tmux.conf block is added once" test "$(grep -c '>>> bottega >>>' "$HOME/.tmux.conf")" = 1
+assert_contains "Ctrl+b g opens the cheatsheet popup" "$(cat "$HOME/.tmux.conf")" "bind g display-popup"
+assert_contains "tmux.conf keeps its settings" "$(cat "$HOME/.tmux.conf")" "set -g mouse on"
+assert_true "cheatsheet is installed" test -f "$HOME/.local/share/bottega/cheatsheet/git.md"
+assert_true "stale cheatsheet topics are removed" test ! -e "$HOME/.local/share/bottega/cheatsheet/removed.md"
 assert_contains "existing tmux-side.conf is kept" "$(cat "$HOME/.tmux-side.conf")" "set -g status-position top"
 assert_true "existing tmux-side.conf is not overwritten" test "$(wc -l <"$HOME/.tmux-side.conf")" = 1
 
@@ -136,6 +143,8 @@ assert_contains "chosen panel is checked" "$output" "ok: lazydocker"
 assert_contains "claude is checked for dev-c-c" "$output" "ok: claude"
 assert_not_contains "opencode is not checked without an opencode env" "$output" "opencode"
 assert_contains "devcontainer is checked for container envs" "$output" "ok: devcontainer"
+assert_contains "fzf is checked for the cheatsheet" "$output" ": fzf"
+assert_contains "clipboard tool is checked" "$output" ": xclip"
 output="$("$project_root/install.sh" --yes --envs dev-o --shell keep 2>&1)"
 assert_contains "opencode is checked for dev-o" "$output" "ok: opencode"
 assert_not_contains "claude is not checked without a claude env" "$output" "claude"
