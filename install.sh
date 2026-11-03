@@ -7,6 +7,9 @@ tmux_source_dir="$repo_dir/tmux"
 target_dir="$HOME/.local/bin"
 backup_dir="$HOME/.bottega-backup-$(date +%Y%m%d-%H%M%S)"
 terminals_config="$HOME/.tmux-terminals.conf"
+main_tmux_config="$HOME/.tmux.conf"
+cheatsheet_source_dir="$repo_dir/cheatsheet"
+cheatsheet_target_dir="${XDG_DATA_HOME:-$HOME/.local/share}/bottega/cheatsheet"
 user_config="${XDG_CONFIG_HOME:-$HOME/.config}/bottega/config"
 block_start="# >>> bottega >>>"
 block_end="# <<< bottega <<<"
@@ -227,18 +230,34 @@ migrate_old_config() {
   rm -rf "$(dirname "$old_user_config")"
 }
 
+write_managed_block() {
+  local file="$1" line="$2"
+  sed -i "\|$block_start|,\|$block_end|d; \|$old_block_start|,\|$old_block_end|d" "$file"
+  printf '%s\n%s\n%s\n' "$block_start" "$line" "$block_end" >>"$file"
+}
+
 update_terminals_config() {
   if [ ! -f "$terminals_config" ]; then
     echo "  skipped: $terminals_config does not exist (new tabs will open host shells)"
     return
   fi
-  sed -i "\|$block_start|,\|$block_end|d; \|$old_block_start|,\|$old_block_end|d" "$terminals_config"
-  {
-    echo "$block_start"
-    echo 'bind -n M-n new-window -c "#{pane_current_path}" dev-in'
-    echo "$block_end"
-  } >>"$terminals_config"
+  write_managed_block "$terminals_config" 'bind -n M-n new-window -c "#{pane_current_path}" dev-in'
   echo "  updated: Alt+n opens a shell in the container when the project has one"
+}
+
+update_main_tmux_config() {
+  write_managed_block "$main_tmux_config" "bind g display-popup -E -w 90% -h 90% -T \" guida \" \"$target_dir/dev-docs\""
+  if tmux has-session 2>/dev/null; then
+    tmux source-file "$main_tmux_config"
+  fi
+  echo "  updated: Ctrl+b g opens the cheatsheet popup"
+}
+
+install_cheatsheet() {
+  rm -rf "$cheatsheet_target_dir"
+  mkdir -p "$cheatsheet_target_dir"
+  cp "$cheatsheet_source_dir"/*.md "$cheatsheet_target_dir/"
+  echo "  installed: $(find "$cheatsheet_target_dir" -name '*.md' | wc -l) topics in $cheatsheet_target_dir"
 }
 
 set_up_zsh() {
@@ -277,7 +296,8 @@ EOF
 
 install_hint() {
   case "$1" in
-    tmux | jq | python3 | podman) echo "sudo apt install $1" ;;
+    tmux | jq | python3 | podman | fzf | xclip) echo "sudo apt install $1" ;;
+    wl-copy) echo "sudo apt install wl-clipboard" ;;
     nvim) echo "./dev-env.sh install (official tarball in /opt)" ;;
     lazygit) echo "see https://github.com/jesseduffield/lazygit#installation" ;;
     claude) echo "curl -fsSL https://claude.ai/install.sh | bash" ;;
@@ -327,9 +347,14 @@ check_docker() {
 
 report_dependencies() {
   local tool
-  for tool in tmux jq python3 nvim lazygit; do
+  for tool in tmux jq python3 nvim lazygit fzf; do
     check_tool "$tool"
   done
+  if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+    check_tool wl-copy
+  else
+    check_tool xclip
+  fi
   if has_env dev || has_env dev-c-c; then
     check_tool claude
   fi
@@ -364,6 +389,12 @@ install_tmux_configs
 
 say "Updating $terminals_config"
 update_terminals_config
+
+say "Updating $main_tmux_config"
+update_main_tmux_config
+
+say "Installing the cheatsheet (Ctrl+b g)"
+install_cheatsheet
 
 dev_shell="$SHELL"
 if [ "$shell_choice" = "zsh" ]; then
