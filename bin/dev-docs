@@ -149,7 +149,9 @@ def copy_to_clipboard(text):
 
 
 def fzf_command():
-    reload_rows = f"{shlex.quote(str(Path(__file__).resolve()))} --rows"
+    this_script = shlex.quote(str(Path(__file__).resolve()))
+    # fzf kills a running reload when a new one starts, so the move runs in execute-silent, which fzf waits for.
+    show_topic = f"reload({this_script} --rows)"
     return [
         "fzf",
         "--ansi",
@@ -159,13 +161,14 @@ def fzf_command():
         "--layout=reverse",
         "--info=inline",
         "--tiebreak=index",
+        "--no-hscroll",
         "--prompt=cerca › ",
         "--pointer=▶",
         f"--color={FZF_COLORS}",
         "--preview=printf '%s\\n\\n%s' {1} {2}",
         "--preview-window=down,4,wrap,border-top",
-        f"--bind=tab:reload({reload_rows} next)",
-        f"--bind=shift-tab:reload({reload_rows} previous)",
+        f"--bind=tab:execute-silent({this_script} --move next)+{show_topic}",
+        f"--bind=shift-tab:execute-silent({this_script} --move previous)+{show_topic}",
     ]
 
 
@@ -191,11 +194,13 @@ def run_popup(topics):
     show_message(f"copiato: {command}")
 
 
-def print_rows(topics, direction):
-    state_file = Path(os.environ[STATE_VARIABLE])
-    step = {"next": 1, "previous": -1, "current": 0}[direction]
-    selected = move_selected_topic(state_file, step, len(topics) + 1)
-    sys.stdout.write(format_rows(topics, selected))
+def move_topic(topics, direction):
+    step = {"next": 1, "previous": -1}[direction]
+    move_selected_topic(Path(os.environ[STATE_VARIABLE]), step, len(topics) + 1)
+
+
+def print_rows(topics):
+    sys.stdout.write(format_rows(topics, read_selected_topic(Path(os.environ[STATE_VARIABLE]))))
 
 
 def parse_arguments():
@@ -203,7 +208,8 @@ def parse_arguments():
         prog="dev-docs",
         description="Searchable cheatsheet of commands and keys, split by topic. Enter copies the command.",
     )
-    parser.add_argument("--rows", choices=["next", "previous", "current"], help=argparse.SUPPRESS)
+    parser.add_argument("--move", choices=["next", "previous"], help=argparse.SUPPRESS)
+    parser.add_argument("--rows", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args()
 
 
@@ -211,8 +217,11 @@ def main():
     arguments = parse_arguments()
     directory = cheatsheet_directory()
     topics = load_topics(directory)
+    if arguments.move:
+        move_topic(topics, arguments.move)
+        return
     if arguments.rows:
-        print_rows(topics, arguments.rows)
+        print_rows(topics)
         return
     if not topics:
         print(f"dev-docs: no cheatsheet found in {directory} (run ./install.sh from the Bottega repository)")
