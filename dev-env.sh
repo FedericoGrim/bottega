@@ -5,7 +5,7 @@
 #       Sul PC di partenza: raccoglie le configurazioni vere e un inventario,
 #       e crea ~/dev-env-DATA.tar.gz (contiene anche questo script).
 #
-#   ./dev-env.sh install [--containers] [--flutter]
+#   ./dev-env.sh install [--containers] [--languages] [--flutter]
 #       Sul PC nuovo (Debian, Ubuntu, Mint): installa gli strumenti e rimette
 #       al loro posto le configurazioni esportate.
 #
@@ -56,7 +56,7 @@ usage() {
   cat <<'EOF'
 Uso:
   ./dev-env.sh export [--claude-settings]
-  ./dev-env.sh install [--containers] [--flutter]
+  ./dev-env.sh install [--containers] [--languages] [--flutter]
 
 export   crea ~/dev-env-DATA.tar.gz con le tue configurazioni e un inventario
 install  installa gli strumenti e applica le configurazioni (da lanciare dentro
@@ -64,6 +64,7 @@ install  installa gli strumenti e applica le configurazioni (da lanciare dentro
 
 --containers   in più: Podman, socket, docker-compose, mise, Node, devcontainer
                CLI e podman-tui (compilato per la tua versione di Podman)
+--languages    in più: Java, Maven, Python, .NET, Go, Node, Rust e pnpm
 --flutter      in più: Flutter e le librerie per le app desktop Linux
 EOF
 }
@@ -543,10 +544,11 @@ EOF
 }
 
 install_env() {
-  local with_containers=0 with_flutter=0 a
+  local with_containers=0 with_languages=0 with_flutter=0 a
   for a in "$@"; do
     case "$a" in
       --containers) with_containers=1 ;;
+      --languages) with_languages=1 ;;
       --flutter) with_flutter=1 ;;
       *) die "opzione sconosciuta: $a" ;;
     esac
@@ -568,14 +570,19 @@ install_env() {
   install_ohmyzsh
   apply_files
   write_zshrc_block
+  install_cli_tools
   replay_gitconfig
   if [ "$with_containers" = 1 ]; then
     install_containers
+  fi
+  if [ "$with_languages" = 1 ]; then
+    install_languages
   fi
   if [ "$with_flutter" = 1 ]; then
     install_flutter
   fi
   install_completions
+  export PATH="$HOME/.local/share/mise/shims:$HOME/.cargo/bin:$PATH"
   sync_nvim
   final_notes
 }
