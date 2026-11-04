@@ -18,6 +18,7 @@ Quattro ambienti, un comando ciascuno:
 - [Le scelte dell'installer](#le-scelte-dellinstaller)
 - [Comandi](#comandi)
 - [Tasti](#tasti)
+- [Guida rapida: Ctrl+b g](#guida-rapida-ctrlb-g)
 - [Dev container: come funzionano](#dev-container-come-funzionano)
 - [Creare un progetto con il dev container](#creare-un-progetto-con-il-dev-container)
 - [Aprire il dev container di qualcun altro](#aprire-il-dev-container-di-qualcun-altro)
@@ -67,9 +68,10 @@ cd bottega
 2. copia le configurazioni di tmux da `tmux/` in `~/.tmux.conf`, `~/.tmux-side.conf` e `~/.tmux-terminals.conf`, **solo se mancano**: quelle che hai già restano come sono;
 3. toglie i vecchi nomi `dev-container` e `dev-opencode` (dopo averli messi nel backup);
 4. aggiunge a `~/.tmux-terminals.conf` un blocco che fa aprire `dev-in` con `Alt+n`;
-5. se hai scelto zsh, installa oh-my-zsh e i plugin;
-6. salva le scelte in `~/.config/bottega/config` (se trova la vecchia `~/.config/dev-variants/config`, la sposta lì);
-7. controlla solo i programmi che servono per le tue scelte e, per quelli che mancano, stampa il comando per installarli. Non installa niente da solo, tranne zsh.
+5. aggiunge a `~/.tmux.conf` un blocco che apre la [guida rapida](#guida-rapida-ctrlb-g) con `Ctrl+b g`, e copia gli argomenti di `cheatsheet/` in `~/.local/share/bottega/cheatsheet/`;
+6. se hai scelto zsh, installa oh-my-zsh e i plugin;
+7. salva le scelte in `~/.config/bottega/config` (se trova la vecchia `~/.config/dev-variants/config`, la sposta lì);
+8. controlla solo i programmi che servono per le tue scelte e, per quelli che mancano, stampa il comando per installarli. Non installa niente da solo, tranne zsh.
 
 Si può rilanciare quando vuoi, per esempio dopo un `git pull` o per cambiare le scelte: propone come risposta predefinita quelle dell'ultima volta, e il blocco in `~/.tmux-terminals.conf` non viene duplicato.
 
@@ -141,6 +143,12 @@ Se un progetto ha già un container avviato con `dev-c-c` o `dev-c-o`, basta `de
 | `dctl <sottocomando> ...` | la CLI `devcontainer` già impostata per il motore scelto. Esempi: `dctl up --workspace-folder .`, `dctl exec --workspace-folder . bash` |
 | `dev-personal-setup` | prepara o aggiorna `~/.local/share/dev-personal`, la cartella con Neovim, la configurazione e gli agenti che viene montata nei container |
 
+### Guida
+
+| Comando | Cosa fa |
+| --- | --- |
+| `dev-docs` | apre la [guida rapida](#guida-rapida-ctrlb-g) nel terminale attuale (di solito la apri con `Ctrl+b g`) |
+
 ### Chiudere
 
 | Comando | Cosa fa |
@@ -167,6 +175,7 @@ Li usa `dev`, non serve lanciarli a mano:
 | `Ctrl+b \|` / `Ctrl+b -` | divide il pannello in verticale / orizzontale |
 | `Ctrl+b h j k l` | sposta il cursore tra i pannelli |
 | `Ctrl+b D` | podman-tui in una finestra a comparsa |
+| `Ctrl+b g` | apre la [guida rapida](#guida-rapida-ctrlb-g) in una finestra a comparsa |
 | `Ctrl+b r` | ricarica la configurazione |
 | mouse | clic per scegliere il pannello, trascina per ridimensionare |
 
@@ -230,6 +239,27 @@ In più: JSON, YAML, TOML, Markdown, Docker, Git, formattazione con prettier, re
 | `Spazio g i / g p` | elenco delle issue / delle PR di GitHub (Octo) |
 
 Per C# serve un file `.sln` o `.csproj` nella cartella: Roslyn analizza l'intera soluzione, quindi la prima apertura è lenta.
+
+## Guida rapida: Ctrl+b g
+
+`Ctrl+b g` apre, da qualsiasi pannello, una finestra a comparsa grande quasi come lo schermo con i comandi e i tasti di tutti gli strumenti: comando a sinistra, cosa fa a destra.
+
+| Tasto | Azione |
+| --- | --- |
+| scrivi | filtra le righe mentre scrivi: basta un pezzo del comando o della descrizione (`rebase`, `annulla`) |
+| `Tab` / `Shift+Tab` | argomento successivo / precedente; `Tutti` cerca in tutti gli argomenti |
+| `↑` / `↓` | scorre le righe |
+| `Invio` | copia il comando negli appunti del PC e chiude: lo incolli con `Ctrl+Shift+V` |
+| `Esc` | chiude |
+
+Gli argomenti sono i file Markdown di [`cheatsheet/`](cheatsheet), uno per argomento: Git, GitHub (con i nomi di branch, commit e PR), lazygit, LazyVim, Podman, DevContainer, Claude Code, tmux e Bottega, Terminale, Flutter, .NET, Spring Boot, Java, Node.js, Python, Go, Rust.
+
+Per aggiungere o modificare un argomento:
+
+1. crea o modifica un file in `cheatsheet/`: un titolo `# Argomento`, poi sezioni `## Sezione` con tabelle a due colonne `| comando | cosa fa |`. Il testo fuori dalle tabelle viene ignorato; un `|` dentro una cella si scrive `\|`;
+2. rilancia `./install.sh`.
+
+Per gli appunti serve `xclip` su X11 o `wl-copy` (`wl-clipboard`) su Wayland: `install.sh` ti dice se manca. Senza, il comando va negli appunti di tmux, e da lì negli appunti del PC solo se il terminale supporta OSC 52.
 
 ## Dev container: come funzionano
 
@@ -463,8 +493,8 @@ rm -rf ~/.local/share/dev-personal ~/.cache/dev ~/.config/bottega
 ## Test
 
 ```bash
-python3 -m unittest discover -s tests   # dev-guard: 21 test
-bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 115 controlli
+python3 -m unittest discover -s tests   # dev-guard e dev-docs: 38 test
+bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 123 controlli
 bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 92 controlli
 ```
 
