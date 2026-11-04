@@ -58,7 +58,7 @@
 | `pnpm install` | installa le dipendenze |
 | `pnpm add nome` | aggiunge un pacchetto |
 | `pnpm dlx nome` | come npx |
-| `corepack enable pnpm` | attiva pnpm senza installarlo con npm |
+| `mise use -g pnpm` | installa pnpm per tutto il PC (Corepack non è incluso nelle versioni recenti di Node) |
 | `pnpm add -D nome` | aggiunge un pacchetto di sviluppo |
 | `pnpm remove nome` | rimuove un pacchetto |
 | `pnpm run dev` | avvia lo script dev |
