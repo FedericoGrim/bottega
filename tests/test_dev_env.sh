@@ -146,10 +146,11 @@ setup_fakes() {
   : >"$calls"
   export CALLS="$calls"
   export DOTNET_CANDIDATE="10.0.114"
+  unset MISE_FAIL_ON
   printf '#!/bin/bash\nexec "$@"\n' >"$fakebin/sudo"
   printf '#!/bin/bash\necho "apt-get $*" >>"$CALLS"\n' >"$fakebin/apt-get"
-  printf '#!/bin/bash\necho "Candidate: $DOTNET_CANDIDATE"\n' >"$fakebin/apt-cache"
-  printf '#!/bin/bash\necho "mise $*" >>"$CALLS"\n' >"$fakebin/mise"
+  printf '#!/bin/bash\necho "  Candidate: $DOTNET_CANDIDATE"\nyes "     500 http://archive.example/ubuntu noble/main" | head -n 200000\n' >"$fakebin/apt-cache"
+  printf '#!/bin/bash\necho "mise $*" >>"$CALLS"\n[ -n "${MISE_FAIL_ON:-}" ] && [[ "$*" == *"$MISE_FAIL_ON"* ]] && exit 1\nexit 0\n' >"$fakebin/mise"
   cat >"$fakebin/curl" <<'FAKE'
 #!/bin/bash
 case "$*" in
@@ -193,7 +194,8 @@ test_languages() {
   assert_contains "languages install the dotnet sdk" "$(calls_log)" 'apt-get install -y dotnet-sdk-10.0'
   assert_contains "languages install Go and Node with mise" "$(calls_log)" 'mise use -g go@latest node@lts'
   assert_contains "languages install rust non-interactively" "$(calls_log)" 'rustup -y --profile default -c rust-analyzer'
-  assert_contains "languages enable pnpm through corepack" "$(calls_log)" 'mise exec node@lts -- corepack enable --install-directory'
+  assert_contains "languages install pnpm with mise" "$(calls_log)" 'mise use -g pnpm'
+  assert_not_contains "pnpm does not depend on corepack" "$(calls_log)" 'corepack'
 }
 
 test_languages_without_dotnet_package() {
@@ -221,10 +223,11 @@ test_languages_skip_rust_when_present() {
 stub_install_steps() {
   local step
   for step in install_packages install_neovim install_treesitter install_lazygit install_claude \
-    install_font install_ohmyzsh apply_files write_zshrc_block replay_gitconfig install_containers \
+    install_font install_ohmyzsh apply_files write_zshrc_block install_containers \
     install_flutter install_completions install_cli_tools install_languages final_notes; do
     eval "$step() { echo $step >>\"\$CALLS\"; }"
   done
+  replay_gitconfig() { echo "replay_gitconfig PATH=$PATH" >>"$CALLS"; }
   sync_nvim() { echo "sync_nvim PATH=$PATH" >>"$CALLS"; }
 }
 
@@ -257,6 +260,7 @@ test_install_order() {
   assert_true "delta is installed before git settings are replayed" "$((cli < git_replay))"
   assert_true "toolchains come before the plugin and server install" "$((languages < sync))"
   assert_contains "mise shims are on the PATH for Mason" "$(calls_log)" '.local/share/mise/shims'
+  assert_contains "mise shims are on the PATH when git settings are replayed" "$(calls_log | grep '^replay_gitconfig')" '.local/share/mise/shims'
   assert_contains "cargo is on the PATH for Mason" "$(calls_log)" '.cargo/bin'
 }
 
@@ -331,6 +335,30 @@ test_export_keeps_only_mise_tools() {
   unset GIT_CONFIG_GLOBAL
 }
 
+test_a_failing_language_step_does_not_stop_the_installer() {
+  setup_fakes
+  export MISE_FAIL_ON="pnpm"
+
+  local output status
+  output="$( (set -e; install_languages) 2>&1 )"
+  status=$?
+  unset MISE_FAIL_ON
+
+  assert_equals "a failing pnpm install does not abort" 0 "$status"
+  assert_contains "the failing step is reported" "$output" 'pnpm'
+}
+
+test_a_failing_rust_install_does_not_stop_the_installer() {
+  setup_fakes
+  printf '#!/bin/bash\nexit 1\n' >"$fakebin/curl"
+
+  local status
+  (set -e; install_languages) >/dev/null 2>&1
+  status=$?
+
+  assert_equals "a failing rustup download does not abort" 0 "$status"
+}
+
 test_zshrc_block
 test_gitconfig_filter
 test_gitconfig_replay_without_delta
@@ -342,6 +370,8 @@ test_cli_tools_without_config
 test_languages
 test_languages_without_dotnet_package
 test_languages_skip_rust_when_present
+test_a_failing_language_step_does_not_stop_the_installer
+test_a_failing_rust_install_does_not_stop_the_installer
 test_install_runs_languages_only_on_request
 test_install_order
 test_unknown_option_is_rejected
