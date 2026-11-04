@@ -109,6 +109,61 @@
 | `]d / [d` | errore o avviso successivo / precedente |
 | `Spazio x x` | elenco di tutti gli errori del progetto |
 
+## Debug
+
+| Tasti | Cosa fa |
+| --- | --- |
+| `Spazio d b` | mette o toglie un punto di interruzione |
+| `Spazio d B` | punto di interruzione con una condizione |
+| `Spazio d c` | avvia il debug o continua fino al prossimo punto |
+| `Spazio d i` | entra nella funzione (step into) |
+| `Spazio d O` | esegue la riga senza entrare (step over) |
+| `Spazio d o` | esce dalla funzione (step out) |
+| `Spazio d C` | continua fino alla riga del cursore |
+| `Spazio d u` | apre o chiude il pannello del debug |
+| `Spazio d e` | valuta l'espressione sotto il cursore |
+| `Spazio d r` | apre o chiude la console (REPL) |
+| `Spazio d t` | termina il debug |
+
+## Test
+
+| Tasti | Cosa fa |
+| --- | --- |
+| `Spazio t r` | esegue il test più vicino al cursore |
+| `Spazio t t` | esegue tutti i test del file |
+| `Spazio t T` | esegue tutti i test del progetto |
+| `Spazio t l` | ripete l'ultimo test eseguito |
+| `Spazio t s` | apre o chiude il riepilogo dei test |
+| `Spazio t o` | mostra l'output del test |
+| `Spazio t d` | esegue il test più vicino con il debugger |
+| `Spazio t w` | rilancia i test del file a ogni salvataggio |
+| `Spazio t S` | ferma i test in corso |
+
+## Refactoring e rinomina
+
+| Tasti | Cosa fa |
+| --- | --- |
+| `Spazio c r` | rinomina il simbolo con anteprima in diretta |
+| `Spazio r s` | menu dei refactoring disponibili |
+| `Spazio r f` | estrae il codice selezionato in una funzione |
+| `Spazio r x` | estrae il codice selezionato in una variabile |
+| `Spazio r i` | sostituisce una variabile con il suo valore |
+| `Spazio c o` | Java: ordina gli import |
+| `Spazio c x v` | Java: estrae una variabile |
+| `Spazio c x c` | Java: estrae una costante |
+
+## GitHub (Octo)
+
+| Tasti | Cosa fa |
+| --- | --- |
+| `Spazio g i` | elenco delle issue del repository |
+| `Spazio g I` | cerca tra le issue |
+| `Spazio g p` | elenco delle pull request |
+| `Spazio g P` | cerca tra le pull request |
+| `Spazio g r` | elenco dei repository |
+| `Spazio g S` | cerca su GitHub |
+| `:Octo pr create` | crea una pull request dal branch corrente |
+
 ## Strumenti
 
 | Tasti | Cosa fa |
@@ -118,6 +173,9 @@
 | `:LazyExtras` | attiva i linguaggi (lang.python, lang.typescript, ...): x sulla riga |
 | `Spazio l oppure :Lazy` | gestione plugin: U aggiorna, S sincronizza, q chiude |
 | `Spazio c m` | Mason: installa server LSP e formatter |
+| `:checkhealth vim.lsp` | quali server sono attivi nel file aperto e perché |
+| `:MasonInstall nome` | installa un server, un debugger o un formatter |
+| `:MasonInstall roslyn@5.14.0-1.26552.12` | C#: installa Roslyn se l'ultima versione non si scarica |
 | `:checkhealth` | controlla cosa manca (compilatore, tree-sitter, clipboard) |
 | `:Tutor` | corso interattivo delle basi, mezz'ora |
 | `:lua Snacks.dashboard()` | torna alla schermata iniziale |
