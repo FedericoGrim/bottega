@@ -389,7 +389,7 @@ Sul PC di partenza:
 ./dev-env.sh export --claude-settings   # include anche ~/.claude/settings.json (controllalo prima)
 ```
 
-L'archivio contiene le configurazioni (tmux, script `dev*`, Neovim, lazygit, mise, regole e skill di Claude), le impostazioni di Git (nome, email, alias, delta e stile dei conflitti) e un inventario dei programmi installati con le loro versioni. Non contiene chiavi SSH, token né credenziali. Non pubblicarlo comunque: sono le tue configurazioni.
+L'archivio contiene le configurazioni (tmux, script `dev*`, Neovim, lazygit, la sezione `[tools]` di mise, regole e skill di Claude), le impostazioni di Git (nome, email, alias, delta e stile dei conflitti) e un inventario dei programmi installati con le loro versioni. Non contiene chiavi SSH, token né credenziali. Non pubblicarlo comunque: sono le tue configurazioni.
 
 Sul PC nuovo:
 
@@ -464,8 +464,8 @@ rm -rf ~/.local/share/dev-personal ~/.cache/dev ~/.config/bottega
 
 ```bash
 python3 -m unittest discover -s tests   # dev-guard: 21 test
-bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 111 controlli
-bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 75 controlli
+bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 115 controlli
+bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 80 controlli
 ```
 
 `test_scripts.sh` e `test_dev_env.sh` lavorano in una home temporanea: non toccano la tua configurazione.
