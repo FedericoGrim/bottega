@@ -522,12 +522,94 @@ install_completions() {
   rm -f "$HOME"/.zcompdump*
 }
 
+NVIM_BIN="${NVIM_BIN:-/opt/nvim-linux-x86_64/bin/nvim}"
+
+# Il registry personalizzato di roslyn può puntare a una release che non esiste ancora:
+# in quel caso si ripiega su questa versione, che esiste su GitHub.
+ROSLYN_FALLBACK_VERSION="5.14.0-1.26552.12"
+
+NVIM_PARSERS=(
+  bash c c_sharp css diff dockerfile fsharp git_config git_rebase gitattributes gitcommit gitignore
+  go gomod gosum gowork html java javascript json json5 lua luadoc markdown markdown_inline ninja
+  python query regex ron rst rust sql toml tsx typescript vim vimdoc xml yaml
+)
+
+NVIM_MASON_PACKAGES=(
+  codelldb csharpier debugpy delve docker-compose-language-service dockerfile-language-server
+  eslint_d fantomas gofumpt goimports golangci-lint gopls hadolint java-debug-adapter java-test
+  jdtls js-debug-adapter json-lsp lua-language-server markdown-toc markdownlint-cli2 marksman
+  netcoredbg prettier pyright ruff rust-analyzer shfmt stylua taplo vtsls yaml-language-server
+)
+
+lua_list() {
+  local item
+  printf '{ '
+  for item in "$@"; do
+    printf '"%s", ' "$item"
+  done
+  printf '}'
+}
+
+write_nvim_tools_script() {
+  local file="$1"
+  cat > "$file" <<LUA
+require("lazy").load({ plugins = { "nvim-treesitter", "mason.nvim" } })
+
+local parsers = $(lua_list "${NVIM_PARSERS[@]}")
+local packages = $(lua_list "${NVIM_MASON_PACKAGES[@]}")
+local roslyn_fallback = "$ROSLYN_FALLBACK_VERSION"
+
+require("nvim-treesitter").install(parsers):wait(1800000)
+
+local registry = require("mason-registry")
+local pending = 0
+
+local function install(name, version, on_failure)
+  local ok, package = pcall(registry.get_package, name)
+  if not ok or (package:is_installed() and not version) then
+    return
+  end
+  pending = pending + 1
+  package:install({ version = version }, function(success, error)
+    pending = pending - 1
+    if not success then
+      print(name .. " non installato: " .. tostring(error))
+      if on_failure then
+        on_failure()
+      end
+    end
+  end)
+end
+
+registry.refresh(function()
+  for _, name in ipairs(packages) do
+    install(name)
+  end
+  install("roslyn", nil, function()
+    install("roslyn", roslyn_fallback)
+  end)
+end)
+
+vim.wait(1800000, function()
+  return #registry.get_installed_package_names() > 0 and pending == 0
+end, 500)
+vim.cmd("qa!")
+LUA
+}
+
 sync_nvim() {
-  local nv=/opt/nvim-linux-x86_64/bin/nvim
-  if [ -x "$nv" ]; then
-    say "Scarico i plugin di LazyVim (può richiedere qualche minuto)"
-    "$nv" --headless "+Lazy! sync" +qa || warn "sincronizzazione dei plugin non completata: apri nvim e controlla con :Lazy"
+  if [ ! -x "$NVIM_BIN" ]; then
+    return 0
   fi
+  say "Scarico i plugin di LazyVim (può richiedere qualche minuto)"
+  "$NVIM_BIN" --headless "+Lazy! sync" +qa || warn "sincronizzazione dei plugin non completata: apri nvim e controlla con :Lazy"
+
+  say "Installo parser, server e debugger (può richiedere diversi minuti)"
+  local script
+  script="$(mktemp --suffix=.lua)"
+  write_nvim_tools_script "$script"
+  "$NVIM_BIN" --headless -c "luafile $script" || warn "installazione di server e parser non completata: apri nvim e controlla con :Mason"
+  rm -f "$script"
 }
 
 final_notes() {

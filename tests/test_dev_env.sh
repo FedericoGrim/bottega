@@ -232,21 +232,19 @@ position_of() { calls_log | grep -n "^$1" | head -n1 | cut -d: -f1; }
 
 test_install_runs_languages_only_on_request() {
   setup_fakes
-  stub_install_steps
 
-  (install_env) >/dev/null 2>&1
+  (stub_install_steps; install_env) >/dev/null 2>&1
   assert_not_contains "languages are opt-in" "$(calls_log)" 'install_languages'
 
   : >"$calls"
-  (install_env --languages) >/dev/null 2>&1
+  (stub_install_steps; install_env --languages) >/dev/null 2>&1
   assert_contains "--languages installs the toolchains" "$(calls_log)" 'install_languages'
 }
 
 test_install_order() {
   setup_fakes
-  stub_install_steps
 
-  (install_env --languages) >/dev/null 2>&1
+  (stub_install_steps; install_env --languages) >/dev/null 2>&1
 
   local files cli git_replay languages sync
   files="$(position_of apply_files)"
@@ -264,9 +262,8 @@ test_install_order() {
 
 test_unknown_option_is_rejected() {
   setup_fakes
-  stub_install_steps
 
-  if (install_env --bogus >/dev/null 2>&1); then
+  if (stub_install_steps; install_env --bogus) >/dev/null 2>&1; then
     fail "an unknown option must fail"
   else
     pass
