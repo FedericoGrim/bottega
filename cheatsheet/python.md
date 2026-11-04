@@ -21,6 +21,15 @@
 | `uv sync` | installa le dipendenze |
 | `uv run script.py` | esegue con l'ambiente del progetto |
 | `uv run pytest` | esegue i test |
+| `uv venv` | crea la cartella .venv |
+| `uv add --dev pytest` | aggiunge un pacchetto solo per lo sviluppo |
+| `uv remove nome` | rimuove un pacchetto |
+| `uv tree` | albero delle dipendenze |
+| `uv pip install nome` | come pip, ma molto più veloce |
+| `uv python install 3.13` | installa una versione di Python |
+| `uv python list` | versioni di Python disponibili |
+| `uvx ruff check .` | esegue uno strumento senza installarlo |
+| `uv self update` | aggiorna uv |
 
 ## Django
 
