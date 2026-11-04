@@ -109,7 +109,7 @@ Il file `~/.config/bottega/config` si può anche modificare a mano. Ogni valore 
 | lazydocker | pannello laterale con Docker (o con Podman, se lo scegli) | [script ufficiale](https://github.com/jesseduffield/lazydocker#installation) |
 | OpenCode | `dev-o`, `dev-c-o` | `npm i -g opencode-ai` |
 | docker-compose | solo i dev container basati su compose | vedi `dev-env.sh` |
-| bat, eza, delta, direnv, uv | `cat` e `ls` migliori, diff di git leggibili, ambiente per cartella, progetti Python | `dev-env.sh install` (li gestisce mise) |
+| bat, eza, delta, direnv, uv, starship | `cat` e `ls` migliori, diff di git leggibili, ambiente per cartella, progetti Python, prompt di zsh con branch e stato git | `dev-env.sh install` (li gestisce mise) |
 | Java, Maven, Python, .NET, Go, Node, Rust, pnpm | i linguaggi che LazyVim sa usare | `dev-env.sh install --languages` |
 
 `~/.local/bin` deve essere nel `PATH`.
@@ -389,13 +389,13 @@ Sul PC di partenza:
 ./dev-env.sh export --claude-settings   # include anche ~/.claude/settings.json (controllalo prima)
 ```
 
-L'archivio contiene le configurazioni (tmux, script `dev*`, Neovim, lazygit, la sezione `[tools]` di mise, regole e skill di Claude), le impostazioni di Git (nome, email, alias, delta e stile dei conflitti) e un inventario dei programmi installati con le loro versioni. Non contiene chiavi SSH, token né credenziali. Non pubblicarlo comunque: sono le tue configurazioni.
+L'archivio contiene le configurazioni (tmux, script `dev*`, Neovim, lazygit, la sezione `[tools]` di mise, starship, regole e skill di Claude), le impostazioni di Git (nome, email, alias, delta e stile dei conflitti) e un inventario dei programmi installati con le loro versioni. Non contiene chiavi SSH, token né credenziali. Non pubblicarlo comunque: sono le tue configurazioni.
 
 Sul PC nuovo:
 
 ```bash
 tar xzf dev-env-DATA.tar.gz && cd dev-env
-./dev-env.sh install                         # strumenti base, Neovim, LazyVim, lazygit, Claude, font, oh-my-zsh, bat, eza, delta, direnv, uv
+./dev-env.sh install                         # strumenti base, Neovim, LazyVim, lazygit, Claude, font, oh-my-zsh, bat, eza, delta, direnv, uv, starship
 ./dev-env.sh install --languages             # in più: Java, Maven, Python, .NET, Go, Node, Rust, pnpm
 ./dev-env.sh install --containers            # in più: Podman, docker-compose, mise, Node, CLI devcontainer, podman-tui
 ./dev-env.sh install --containers --flutter  # in più: Flutter
@@ -405,8 +405,8 @@ Le opzioni si possono combinare. Cosa fa, in ordine:
 
 1. installa i pacchetti di sistema, Neovim ufficiale, lazygit, Claude Code, il font e oh-my-zsh;
 2. rimette al loro posto le configurazioni dell'archivio (le versioni diverse già presenti vanno in un backup);
-3. scrive in `~/.zshrc`, tra i marcatori `# >>> dev-env >>>` e `# <<< dev-env <<<`, il `PATH`, zoxide, mise, direnv e cargo (il blocco si rigenera a ogni esecuzione);
-4. installa con mise bat, eza, delta, direnv e uv, più tutto quello che c'è nel `config.toml` di mise dell'archivio;
+3. scrive in `~/.zshrc`, tra i marcatori `# >>> dev-env >>>` e `# <<< dev-env <<<`, il `PATH`, zoxide, mise, direnv, cargo e il prompt starship (il blocco si rigenera a ogni esecuzione);
+4. installa con mise bat, eza, delta, direnv, uv e starship, più tutto quello che c'è nel `config.toml` di mise dell'archivio;
 5. applica le impostazioni di Git. Se delta non è installato salta `core.pager` e `interactive.diffFilter`, così git non smette di mostrare l'output;
 6. con `--languages`: JDK 21, Maven e Python con apt, `dotnet-sdk-10.0` con apt (se il sistema non lo ha, stampa il link per installarlo a mano), Go, Node LTS e pnpm con mise, Rust con `rustup`. Se un passo dei linguaggi fallisce, l'installer lo segnala e va avanti;
 7. scarica i plugin di LazyVim e poi, **aspettando che finiscano**, installa i parser treesitter e i pacchetti di Mason (server, debugger e formatter).
@@ -465,7 +465,7 @@ rm -rf ~/.local/share/dev-personal ~/.cache/dev ~/.config/bottega
 ```bash
 python3 -m unittest discover -s tests   # dev-guard: 21 test
 bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 115 controlli
-bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 85 controlli
+bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 88 controlli
 ```
 
 `test_scripts.sh` e `test_dev_env.sh` lavorano in una home temporanea: non toccano la tua configurazione.
