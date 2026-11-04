@@ -107,10 +107,36 @@ test_gitconfig_replay_with_delta() {
   unset GIT_CONFIG_GLOBAL
 }
 
+test_export_archive() {
+  mkdir -p "$HOME/.config/mise"
+  printf '[tools]\nbat = "latest"\n' >"$HOME/.config/mise/config.toml"
+  export GIT_CONFIG_GLOBAL="$root/gitconfig-export"
+  git config --global user.name Federico
+  git config --global credential.helper store
+
+  export_env >/dev/null 2>&1
+
+  local archive listing manifest gitconfig
+  archive="$(ls "$HOME"/dev-env-*.tar.gz 2>/dev/null | head -n1)"
+  listing="$(tar -tzf "$archive" 2>/dev/null)"
+  manifest="$(tar -xzOf "$archive" dev-env/manifest.txt 2>/dev/null)"
+  gitconfig="$(tar -xzOf "$archive" dev-env/gitconfig.txt 2>/dev/null)"
+
+  assert_contains "archive includes the mise config" "$listing" 'dev-env/files/.config/mise/config.toml'
+  for tool in uv mise pnpm rustc cargo java dotnet bat eza delta direnv; do
+    assert_contains "manifest lists $tool" "$manifest" "$tool"
+  done
+  assert_contains "archive keeps the git user name" "$gitconfig" 'user.name=Federico'
+  assert_not_contains "archive drops credential helpers" "$gitconfig" 'credential'
+  rm -f "$archive"
+  unset GIT_CONFIG_GLOBAL
+}
+
 test_zshrc_block
 test_gitconfig_filter
 test_gitconfig_replay_without_delta
 test_gitconfig_replay_with_delta
+test_export_archive
 
 echo "$checks checks, $failures failed"
 [ "$failures" -eq 0 ]
