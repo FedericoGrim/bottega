@@ -48,6 +48,7 @@ test_zshrc_block() {
   assert_equals "zshrc block is written once" 1 "$(grep -c '# >>> dev-env >>>' "$HOME/.zshrc")"
   assert_contains "zshrc activates mise" "$content" 'mise activate zsh'
   assert_contains "zshrc hooks direnv" "$content" 'direnv hook zsh'
+  assert_contains "zshrc starts the starship prompt" "$content" 'starship init zsh'
   assert_contains "zshrc loads cargo" "$content" '.cargo/env'
 }
 
@@ -128,7 +129,7 @@ test_export_archive() {
   gitconfig="$(tar -xzOf "$archive" dev-env/gitconfig.txt 2>/dev/null)"
 
   assert_contains "archive includes the mise config" "$listing" 'dev-env/files/.config/mise/config.toml'
-  for tool in uv mise pnpm rustc cargo java dotnet bat eza delta direnv; do
+  for tool in uv mise pnpm rustc cargo java dotnet bat eza delta direnv starship; do
     assert_contains "manifest lists $tool" "$manifest" "$tool"
   done
   assert_contains "archive keeps the git user name" "$gitconfig" 'user.name=Federico'
@@ -173,7 +174,7 @@ test_cli_tools_with_exported_config() {
   install_cli_tools >/dev/null 2>&1
 
   assert_contains "cli tools install what the config lists" "$(calls_log)" 'mise install'
-  assert_contains "cli tools make sure the five tools are in the config" "$(calls_log)" 'mise use -g bat eza delta direnv uv'
+  assert_contains "cli tools make sure the six tools are in the config" "$(calls_log)" 'mise use -g bat eza delta direnv uv starship'
 }
 
 test_cli_tools_without_config() {
@@ -182,7 +183,7 @@ test_cli_tools_without_config() {
   install_cli_tools >/dev/null 2>&1
 
   assert_not_contains "cli tools skip install without a config" "$(calls_log)" 'mise install'
-  assert_contains "cli tools still install the five tools" "$(calls_log)" 'mise use -g bat eza delta direnv uv'
+  assert_contains "cli tools still install the six tools" "$(calls_log)" 'mise use -g bat eza delta direnv uv starship'
 }
 
 test_languages() {
