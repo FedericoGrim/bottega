@@ -465,7 +465,7 @@ rm -rf ~/.local/share/dev-personal ~/.cache/dev ~/.config/bottega
 ```bash
 python3 -m unittest discover -s tests   # dev-guard: 21 test
 bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 115 controlli
-bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 88 controlli
+bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 92 controlli
 ```
 
 `test_scripts.sh` e `test_dev_env.sh` lavorano in una home temporanea: non toccano la tua configurazione.
