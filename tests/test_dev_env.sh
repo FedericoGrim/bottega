@@ -116,6 +116,7 @@ test_gitconfig_replay_with_delta() {
 test_export_archive() {
   mkdir -p "$HOME/.config/mise"
   printf '[tools]\nbat = "latest"\n' >"$HOME/.config/mise/config.toml"
+  printf 'add_newline = false\n' >"$HOME/.config/starship.toml"
   export GIT_CONFIG_GLOBAL="$root/gitconfig-export"
   git config --global user.name Federico
   git config --global credential.helper store
@@ -129,6 +130,7 @@ test_export_archive() {
   gitconfig="$(tar -xzOf "$archive" dev-env/gitconfig.txt 2>/dev/null)"
 
   assert_contains "archive includes the mise config" "$listing" 'dev-env/files/.config/mise/config.toml'
+  assert_contains "archive includes the starship config" "$listing" 'dev-env/files/.config/starship.toml'
   for tool in uv mise pnpm rustc cargo java dotnet bat eza delta direnv starship; do
     assert_contains "manifest lists $tool" "$manifest" "$tool"
   done
