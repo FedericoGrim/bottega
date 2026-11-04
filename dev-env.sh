@@ -146,6 +146,10 @@ write_manifest() {
   } > "$root/manifest.txt"
 }
 
+filter_gitconfig() {
+  grep -E '^(user\.name|user\.email|init\.defaultbranch|core\.editor|core\.pager|interactive\.difffilter|merge\.conflictstyle|delta\.|alias\.)'
+}
+
 export_env() {
   local with_claude_settings=0 a
   for a in "$@"; do
@@ -177,10 +181,8 @@ export_env() {
     fi
   fi
 
-  say "Salvo le impostazioni di Git (solo nome, email, editor e alias)"
-  git config --global --list 2>/dev/null \
-    | grep -E '^(user\.name|user\.email|init\.defaultbranch|core\.editor|alias\.)' \
-    > "$root/gitconfig.txt" || true
+  say "Salvo le impostazioni di Git (nome, email, editor, alias, delta e stile dei conflitti)"
+  git config --global --list 2>/dev/null | filter_gitconfig > "$root/gitconfig.txt" || true
 
   if [ -f "$HOME/.zshrc" ]; then
     say "Salvo una copia di .zshrc da rivedere a mano (senza le righe con parole come key, token, secret)"
@@ -378,10 +380,19 @@ replay_gitconfig() {
   fi
   say "Impostazioni di Git"
   while IFS='=' read -r k v; do
-    if [ -n "$k" ]; then
-      git config --global "$k" "$v"
-      echo "  $k"
+    if [ -z "$k" ]; then
+      continue
     fi
+    case "$k" in
+      core.pager|interactive.difffilter)
+        if ! command -v delta >/dev/null 2>&1; then
+          warn "delta non installato: salto $k"
+          continue
+        fi
+        ;;
+    esac
+    git config --global "$k" "$v"
+    echo "  $k"
   done < "$f"
 }
 
