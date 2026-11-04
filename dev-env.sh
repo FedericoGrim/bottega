@@ -364,6 +364,8 @@ write_zshrc_block() {
     echo 'export PATH="$PATH:/opt/nvim-linux-x86_64/bin"'
     echo 'command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init zsh)"'
     echo '[ -x "$HOME/.local/bin/mise" ] && eval "$($HOME/.local/bin/mise activate zsh)"'
+    echo 'command -v direnv >/dev/null 2>&1 && eval "$(direnv hook zsh)"'
+    echo '[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"'
     echo '[ -d "$HOME/develop/flutter/bin" ] && export PATH="$HOME/develop/flutter/bin:$PATH"'
     echo '# <<< dev-env <<<'
   } >> "$rc"
