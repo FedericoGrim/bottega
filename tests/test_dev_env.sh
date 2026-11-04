@@ -24,6 +24,11 @@ assert_not_contains() {
   if [[ "$haystack" != *"$needle"* ]]; then pass; else fail "$description (unexpected: $needle)"; fi
 }
 
+assert_true() {
+  local description="$1" condition="$2"
+  if [ "$condition" = 1 ]; then pass; else fail "$description"; fi
+}
+
 assert_equals() {
   local description="$1" expected="$2" actual="$3"
   if [ "$expected" = "$actual" ]; then pass; else fail "$description (expected: $expected, got: $actual)"; fi
@@ -213,6 +218,65 @@ test_languages_skip_rust_when_present() {
   assert_not_contains "rust is not installed twice" "$(calls_log)" 'rustup -y'
 }
 
+stub_install_steps() {
+  local step
+  for step in install_packages install_neovim install_treesitter install_lazygit install_claude \
+    install_font install_ohmyzsh apply_files write_zshrc_block replay_gitconfig install_containers \
+    install_flutter install_completions install_cli_tools install_languages final_notes; do
+    eval "$step() { echo $step >>\"\$CALLS\"; }"
+  done
+  sync_nvim() { echo "sync_nvim PATH=$PATH" >>"$CALLS"; }
+}
+
+position_of() { calls_log | grep -n "^$1" | head -n1 | cut -d: -f1; }
+
+test_install_runs_languages_only_on_request() {
+  setup_fakes
+  stub_install_steps
+
+  (install_env) >/dev/null 2>&1
+  assert_not_contains "languages are opt-in" "$(calls_log)" 'install_languages'
+
+  : >"$calls"
+  (install_env --languages) >/dev/null 2>&1
+  assert_contains "--languages installs the toolchains" "$(calls_log)" 'install_languages'
+}
+
+test_install_order() {
+  setup_fakes
+  stub_install_steps
+
+  (install_env --languages) >/dev/null 2>&1
+
+  local files cli git_replay languages sync
+  files="$(position_of apply_files)"
+  cli="$(position_of install_cli_tools)"
+  git_replay="$(position_of replay_gitconfig)"
+  languages="$(position_of install_languages)"
+  sync="$(position_of sync_nvim)"
+
+  assert_true "config files come before the CLI tools" "$((files < cli))"
+  assert_true "delta is installed before git settings are replayed" "$((cli < git_replay))"
+  assert_true "toolchains come before the plugin and server install" "$((languages < sync))"
+  assert_contains "mise shims are on the PATH for Mason" "$(calls_log)" '.local/share/mise/shims'
+  assert_contains "cargo is on the PATH for Mason" "$(calls_log)" '.cargo/bin'
+}
+
+test_unknown_option_is_rejected() {
+  setup_fakes
+  stub_install_steps
+
+  if (install_env --bogus >/dev/null 2>&1); then
+    fail "an unknown option must fail"
+  else
+    pass
+  fi
+}
+
+test_usage_mentions_languages() {
+  assert_contains "usage documents --languages" "$(usage)" '--languages'
+}
+
 test_zshrc_block
 test_gitconfig_filter
 test_gitconfig_replay_without_delta
@@ -223,6 +287,10 @@ test_cli_tools_without_config
 test_languages
 test_languages_without_dotnet_package
 test_languages_skip_rust_when_present
+test_install_runs_languages_only_on_request
+test_install_order
+test_unknown_option_is_rejected
+test_usage_mentions_languages
 
 echo "$checks checks, $failures failed"
 [ "$failures" -eq 0 ]
