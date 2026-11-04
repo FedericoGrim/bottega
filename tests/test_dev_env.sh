@@ -46,7 +46,71 @@ test_zshrc_block() {
   assert_contains "zshrc loads cargo" "$content" '.cargo/env'
 }
 
+test_gitconfig_filter() {
+  local filtered
+  filtered="$(printf '%s\n' \
+    'user.name=Federico' \
+    'core.pager=delta' \
+    'interactive.difffilter=delta --color-only' \
+    'delta.navigate=true' \
+    'merge.conflictstyle=zdiff3' \
+    'credential.helper=store' \
+    'user.signingkey=ABCDEF' \
+    'url.git@github.com:.insteadof=https://github.com/' | filter_gitconfig)"
+
+  assert_contains "filter keeps the user name" "$filtered" 'user.name=Federico'
+  assert_contains "filter keeps the pager" "$filtered" 'core.pager=delta'
+  assert_contains "filter keeps the diff filter" "$filtered" 'interactive.difffilter=delta --color-only'
+  assert_contains "filter keeps delta options" "$filtered" 'delta.navigate=true'
+  assert_contains "filter keeps the conflict style" "$filtered" 'merge.conflictstyle=zdiff3'
+  assert_not_contains "filter drops credential helpers" "$filtered" 'credential.helper'
+  assert_not_contains "filter drops signing keys" "$filtered" 'signingkey'
+  assert_not_contains "filter drops url rewrites" "$filtered" 'insteadof'
+}
+
+test_gitconfig_replay_without_delta() {
+  local previous_here="$HERE" previous_path="$PATH"
+  HERE="$root/archive"
+  mkdir -p "$HERE"
+  printf '%s\n' 'user.name=Federico' 'core.pager=delta' 'delta.navigate=true' >"$HERE/gitconfig.txt"
+  export GIT_CONFIG_GLOBAL="$root/gitconfig-without-delta"
+  : >"$GIT_CONFIG_GLOBAL"
+  PATH="/usr/bin:/bin"
+
+  replay_gitconfig >/dev/null 2>&1
+
+  PATH="$previous_path"
+  HERE="$previous_here"
+  assert_equals "replay sets the user name" Federico "$(git config --global user.name)"
+  assert_equals "replay skips the pager when delta is missing" "" "$(git config --global core.pager)"
+  assert_equals "replay still sets delta options" true "$(git config --global delta.navigate)"
+  unset GIT_CONFIG_GLOBAL
+}
+
+test_gitconfig_replay_with_delta() {
+  local previous_here="$HERE" previous_path="$PATH"
+  HERE="$root/archive"
+  mkdir -p "$HERE" "$root/fakedelta"
+  printf '#!/bin/sh\n' >"$root/fakedelta/delta"
+  chmod +x "$root/fakedelta/delta"
+  printf '%s\n' 'core.pager=delta' 'interactive.difffilter=delta --color-only' >"$HERE/gitconfig.txt"
+  export GIT_CONFIG_GLOBAL="$root/gitconfig-with-delta"
+  : >"$GIT_CONFIG_GLOBAL"
+  PATH="$root/fakedelta:$PATH"
+
+  replay_gitconfig >/dev/null 2>&1
+
+  PATH="$previous_path"
+  HERE="$previous_here"
+  assert_equals "replay sets the pager when delta exists" delta "$(git config --global core.pager)"
+  assert_equals "replay keeps values containing spaces" "delta --color-only" "$(git config --global interactive.difffilter)"
+  unset GIT_CONFIG_GLOBAL
+}
+
 test_zshrc_block
+test_gitconfig_filter
+test_gitconfig_replay_without_delta
+test_gitconfig_replay_with_delta
 
 echo "$checks checks, $failures failed"
 [ "$failures" -eq 0 ]
