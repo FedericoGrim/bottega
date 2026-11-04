@@ -439,7 +439,9 @@ install_cli_tools() {
 }
 
 install_dotnet() {
-  if apt-cache policy dotnet-sdk-10.0 2>/dev/null | grep -q 'Candidate: [0-9]'; then
+  local policy
+  policy="$(apt-cache policy dotnet-sdk-10.0 2>/dev/null || true)"
+  if [[ "$policy" == *"Candidate: "[0-9]* ]]; then
     sudo apt-get install -y dotnet-sdk-10.0
   else
     warn "dotnet-sdk-10.0 non è nei repository di questo sistema: installalo a mano (https://learn.microsoft.com/dotnet/core/install/linux)"
@@ -455,8 +457,8 @@ install_rust() {
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default -c rust-analyzer
 }
 
-enable_pnpm() {
-  "$HOME/.local/bin/mise" exec node@lts -- corepack enable --install-directory "$HOME/.local/bin" pnpm
+install_pnpm() {
+  "$HOME/.local/bin/mise" use -g pnpm
 }
 
 install_languages() {
@@ -465,8 +467,8 @@ install_languages() {
   install_dotnet
   ensure_mise
   "$HOME/.local/bin/mise" use -g go@latest node@lts
-  install_rust
-  enable_pnpm
+  install_rust || warn "Rust non installato: riprova con il comando di https://rustup.rs"
+  install_pnpm || warn "pnpm non installato: riprova con  mise use -g pnpm"
 }
 
 install_containers() {
@@ -666,6 +668,7 @@ install_env() {
   apply_files
   write_zshrc_block
   install_cli_tools
+  export PATH="$HOME/.local/share/mise/shims:$HOME/.cargo/bin:$PATH"
   replay_gitconfig
   if [ "$with_containers" = 1 ]; then
     install_containers
@@ -677,7 +680,6 @@ install_env() {
     install_flutter
   fi
   install_completions
-  export PATH="$HOME/.local/share/mise/shims:$HOME/.cargo/bin:$PATH"
   sync_nvim
   final_notes
 }
