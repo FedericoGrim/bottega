@@ -164,6 +164,14 @@ filter_gitconfig() {
   grep -E '^(user\.name|user\.email|init\.defaultbranch|core\.editor|core\.pager|interactive\.difffilter|merge\.conflictstyle|delta\.|alias\.)'
 }
 
+# La config di mise può avere una sezione [env] con variabili private: si esporta solo [tools].
+keep_mise_tools_only() {
+  local file="$1" tmp
+  tmp="$(mktemp)"
+  awk '/^\[/ { in_tools = ($0 ~ /^\[tools(\]|\.)/) } in_tools' "$file" > "$tmp"
+  mv "$tmp" "$file"
+}
+
 export_env() {
   local with_claude_settings=0 a
   for a in "$@"; do
@@ -187,6 +195,11 @@ export_env() {
       echo "  assente: $item"
     fi
   done
+
+  if [ -f "$root/files/.config/mise/config.toml" ]; then
+    keep_mise_tools_only "$root/files/.config/mise/config.toml"
+    echo "  mise: esportata solo la sezione [tools]"
+  fi
 
   if [ "$with_claude_settings" = 1 ]; then
     if [ -f "$HOME/.claude/settings.json" ]; then
