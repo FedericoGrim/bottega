@@ -117,7 +117,7 @@ test_export_archive() {
   export_env >/dev/null 2>&1
 
   local archive listing manifest gitconfig
-  archive="$(ls "$HOME"/dev-env-*.tar.gz 2>/dev/null | head -n1)"
+  archive="$(find "$HOME" -maxdepth 1 -name 'dev-env-*.tar.gz' | head -n1)"
   listing="$(tar -tzf "$archive" 2>/dev/null)"
   manifest="$(tar -xzOf "$archive" dev-env/manifest.txt 2>/dev/null)"
   gitconfig="$(tar -xzOf "$archive" dev-env/gitconfig.txt 2>/dev/null)"

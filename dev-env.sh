@@ -38,6 +38,7 @@ FILES=(
   .local/bin/dev-personal-setup
   .local/bin/dctl
   .config/lazygit/config.yml
+  .config/mise/config.toml
   .claude/CLAUDE.md
 )
 DIRS=(
@@ -105,12 +106,24 @@ write_manifest() {
     ver podman-tui version
     ver docker-compose version
     ver mise --version
+    ver uv --version
     ver node --version
+    ver pnpm --version
+    ver python3 --version
+    ver java -version
+    ver mvn --version
     ver go version
+    ver rustc --version
+    ver cargo --version
+    ver dotnet --version
     ver gh --version
     ver flutter --version
     ver btop --version
     ver zoxide --version
+    ver bat --version
+    ver eza --version
+    ver delta --version
+    ver direnv version
     ver shellcheck --version
     ver jq --version
     echo
