@@ -310,11 +310,33 @@ test_sync_nvim_without_nvim_is_not_an_error() {
   assert_equals "sync is skipped silently without nvim" 0 "$(sync_nvim >/dev/null 2>&1; echo $?)"
 }
 
+test_export_keeps_only_mise_tools() {
+  mkdir -p "$HOME/.config/mise"
+  printf '[env]\nGITHUB_TOKEN = "ghp_secret"\n\n[tools]\nbat = "latest"\neza = "latest"\n\n[settings]\nexperimental = true\n' >"$HOME/.config/mise/config.toml"
+  export GIT_CONFIG_GLOBAL="$root/gitconfig-mise"
+  : >"$GIT_CONFIG_GLOBAL"
+
+  export_env >/dev/null 2>&1
+
+  local archive exported
+  archive="$(find "$HOME" -maxdepth 1 -name 'dev-env-*.tar.gz' | head -n1)"
+  exported="$(tar -xzOf "$archive" dev-env/files/.config/mise/config.toml 2>/dev/null)"
+
+  assert_contains "exported mise config keeps the tools section" "$exported" '[tools]'
+  assert_contains "exported mise config keeps the tools" "$exported" 'eza = "latest"'
+  assert_not_contains "exported mise config drops the env section" "$exported" 'GITHUB_TOKEN'
+  assert_not_contains "exported mise config drops the secret value" "$exported" 'ghp_secret'
+  assert_not_contains "exported mise config drops other sections" "$exported" 'experimental'
+  rm -f "$archive"
+  unset GIT_CONFIG_GLOBAL
+}
+
 test_zshrc_block
 test_gitconfig_filter
 test_gitconfig_replay_without_delta
 test_gitconfig_replay_with_delta
 test_export_archive
+test_export_keeps_only_mise_tools
 test_cli_tools_with_exported_config
 test_cli_tools_without_config
 test_languages
