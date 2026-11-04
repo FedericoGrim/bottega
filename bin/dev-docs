@@ -1,0 +1,234 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
+
+STATE_VARIABLE = "DEV_DOCS_STATE"
+ALL_TOPICS_LABEL = "Tutti"
+MAX_COMMAND_WIDTH = 48
+UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
+SEPARATOR_ROW = re.compile(r"^\|[\s:|-]+\|$")
+CODE_SPAN = re.compile(r"(`+) ?(.*?) ?\1")
+
+RESET = "\x1b[0m"
+DIM = "\x1b[38;2;86;95;137m"
+BLUE = "\x1b[38;2;122;162;247m"
+SELECTED_TAB = "\x1b[1;38;2;22;22;30;48;2;122;162;247m"
+TAB = "\x1b[38;2;192;202;245m"
+
+FZF_COLORS = ",".join(
+    [
+        "bg+:#292e42",
+        "fg+:#c0caf5",
+        "hl:#ff9e64",
+        "hl+:#ff9e64",
+        "prompt:#7aa2f7",
+        "pointer:#7aa2f7",
+        "info:#565f89",
+        "border:#292e42",
+        "header:#c0caf5",
+    ]
+)
+
+
+@dataclass(frozen=True)
+class Entry:
+    section: str
+    command: str
+    description: str
+
+
+@dataclass
+class Topic:
+    title: str
+    entries: list[Entry] = field(default_factory=list)
+
+
+def cheatsheet_directory():
+    if os.environ.get("DEV_CHEATSHEET_DIR"):
+        return Path(os.environ["DEV_CHEATSHEET_DIR"])
+    data_home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    return data_home / "bottega" / "cheatsheet"
+
+
+def split_cells(row):
+    return [cell.replace("\\|", "|").strip() for cell in UNESCAPED_PIPE.split(row.strip()[1:-1])]
+
+
+def without_code_marks(text):
+    return CODE_SPAN.sub(r"\2", text)
+
+
+def parse_cheatsheet(text, default_title=""):
+    topic = Topic(default_title)
+    section = ""
+    is_table_header = True
+    for line in (raw.strip() for raw in text.splitlines()):
+        if not line.startswith("|"):
+            is_table_header = True
+            if line.startswith("# "):
+                topic.title = line[2:].strip()
+            elif line.startswith("## "):
+                section = line[3:].strip()
+            continue
+        if is_table_header or SEPARATOR_ROW.match(line):
+            is_table_header = False
+            continue
+        cells = split_cells(line)
+        if len(cells) >= 2:
+            topic.entries.append(Entry(section, without_code_marks(cells[0]), without_code_marks(cells[1])))
+    return topic
+
+
+def load_topics(directory):
+    if not directory.is_dir():
+        return []
+    topics = [parse_cheatsheet(path.read_text(encoding="utf-8"), path.stem) for path in directory.glob("*.md")]
+    return sorted(topics, key=lambda topic: topic.title.casefold())
+
+
+def topic_bar(topics, selected):
+    names = [ALL_TOPICS_LABEL] + [topic.title for topic in topics]
+    tabs = [f"{SELECTED_TAB if index == selected else TAB} {name} {RESET}" for index, name in enumerate(names)]
+    return " ".join(tabs) + f"   {DIM}Tab/Shift+Tab argomento · Invio copia · Esc chiude{RESET}"
+
+
+def labelled_entries(topics, selected):
+    if selected == 0:
+        return [(f"{topic.title} › {entry.section}", entry) for topic in topics for entry in topic.entries]
+    return [(entry.section, entry) for entry in topics[selected - 1].entries]
+
+
+def format_rows(topics, selected):
+    entries = labelled_entries(topics, selected)
+    label_width = max((len(label) for label, _ in entries), default=0)
+    command_width = min(max((len(entry.command) for _, entry in entries), default=0), MAX_COMMAND_WIDTH)
+    lines = [f"\t\t{topic_bar(topics, selected)}"]
+    for label, entry in entries:
+        command = entry.command.ljust(command_width)
+        display = f"{DIM}{label.ljust(label_width)}{RESET}  {BLUE}{command}{RESET}  {entry.description}"
+        lines.append(f"{entry.command}\t{entry.description}\t{display}")
+    return "\n".join(lines) + "\n"
+
+
+def read_selected_topic(state_file):
+    try:
+        return int(state_file.read_text())
+    except (FileNotFoundError, ValueError):
+        return 0
+
+
+def move_selected_topic(state_file, step, topic_count):
+    selected = (read_selected_topic(state_file) + step) % topic_count
+    state_file.write_text(str(selected))
+    return selected
+
+
+def clipboard_command():
+    if os.environ.get("WAYLAND_DISPLAY") and shutil.which("wl-copy"):
+        return ["wl-copy"]
+    if os.environ.get("DISPLAY") and shutil.which("xclip"):
+        return ["xclip", "-selection", "clipboard"]
+    return None
+
+
+def copy_to_clipboard(text):
+    command = clipboard_command()
+    if command is None:
+        subprocess.run(["tmux", "set-buffer", "-w", "--", text], check=False)
+        return
+    # The clipboard tool keeps running to serve the selection: a new session keeps it alive after the popup closes.
+    subprocess.run(command, input=text, text=True, check=False, start_new_session=True)
+
+
+def fzf_command():
+    this_script = shlex.quote(str(Path(__file__).resolve()))
+    # fzf kills a running reload when a new one starts, so the move runs in execute-silent, which fzf waits for.
+    show_topic = f"reload({this_script} --rows)"
+    return [
+        "fzf",
+        "--ansi",
+        "--delimiter=\t",
+        "--with-nth=3",
+        "--header-lines=1",
+        "--layout=reverse",
+        "--info=inline",
+        "--tiebreak=index",
+        "--no-hscroll",
+        "--prompt=cerca › ",
+        "--pointer=▶",
+        f"--color={FZF_COLORS}",
+        "--preview=printf '%s\\n\\n%s' {1} {2}",
+        "--preview-window=down,4,wrap,border-top",
+        f"--bind=tab:execute-silent({this_script} --move next)+{show_topic}",
+        f"--bind=shift-tab:execute-silent({this_script} --move previous)+{show_topic}",
+    ]
+
+
+def show_message(message):
+    if os.environ.get("TMUX"):
+        subprocess.run(["tmux", "display-message", message], check=False)
+    else:
+        print(message)
+
+
+def run_popup(topics):
+    if not shutil.which("fzf"):
+        sys.exit("dev-docs: fzf is not installed (sudo apt install fzf)")
+    with tempfile.TemporaryDirectory(prefix="dev-docs-") as state_directory:
+        environment = {**os.environ, STATE_VARIABLE: str(Path(state_directory) / "selected")}
+        result = subprocess.run(
+            fzf_command(), input=format_rows(topics, 0), stdout=subprocess.PIPE, text=True, env=environment
+        )
+    if result.returncode != 0 or not result.stdout.strip():
+        return
+    command = result.stdout.split("\t", 1)[0]
+    copy_to_clipboard(command)
+    show_message(f"copiato: {command}")
+
+
+def move_topic(topics, direction):
+    step = {"next": 1, "previous": -1}[direction]
+    move_selected_topic(Path(os.environ[STATE_VARIABLE]), step, len(topics) + 1)
+
+
+def print_rows(topics):
+    sys.stdout.write(format_rows(topics, read_selected_topic(Path(os.environ[STATE_VARIABLE]))))
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        prog="dev-docs",
+        description="Searchable cheatsheet of commands and keys, split by topic. Enter copies the command.",
+    )
+    parser.add_argument("--move", choices=["next", "previous"], help=argparse.SUPPRESS)
+    parser.add_argument("--rows", action="store_true", help=argparse.SUPPRESS)
+    return parser.parse_args()
+
+
+def main():
+    arguments = parse_arguments()
+    directory = cheatsheet_directory()
+    topics = load_topics(directory)
+    if arguments.move:
+        move_topic(topics, arguments.move)
+        return
+    if arguments.rows:
+        print_rows(topics)
+        return
+    if not topics:
+        print(f"dev-docs: no cheatsheet found in {directory} (run ./install.sh from the Bottega repository)")
+        input("Press Enter to close")
+        return
+    run_popup(topics)
+
+
+if __name__ == "__main__":
+    main()
