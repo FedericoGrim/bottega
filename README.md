@@ -109,6 +109,8 @@ Il file `~/.config/bottega/config` si può anche modificare a mano. Ogni valore 
 | lazydocker | pannello laterale con Docker (o con Podman, se lo scegli) | [script ufficiale](https://github.com/jesseduffield/lazydocker#installation) |
 | OpenCode | `dev-o`, `dev-c-o` | `npm i -g opencode-ai` |
 | docker-compose | solo i dev container basati su compose | vedi `dev-env.sh` |
+| bat, eza, delta, direnv, uv | `cat` e `ls` migliori, diff di git leggibili, ambiente per cartella, progetti Python | `dev-env.sh install` (li gestisce mise) |
+| Java, Maven, Python, .NET, Go, Node, Rust, pnpm | i linguaggi che LazyVim sa usare | `dev-env.sh install --languages` |
 
 `~/.local/bin` deve essere nel `PATH`.
 
@@ -194,6 +196,40 @@ Se il progetto ha un container ma è spento, `Alt+n` dà errore e la scheda si c
 | `Spazio` | menu dei comandi (aspetta un attimo e compare l'elenco) |
 | `:Lazy` | gestione plugin. Dentro: `H` home, `U` aggiorna, `S` sincronizza, `q` chiude |
 | `:lua Snacks.dashboard()` | torna alla schermata iniziale |
+| `:LazyExtras` | attiva o disattiva i linguaggi e gli strumenti (`x` sulla riga) |
+| `Spazio c m` | Mason: server, formatter e debugger installati |
+
+#### Linguaggi e strumenti già attivi
+
+Gli extras di LazyVim attivi sono in `~/.config/nvim/lazyvim.json` e vengono copiati da `dev-env.sh`:
+
+| Linguaggio | Server | Debug | Test |
+| --- | --- | --- | --- |
+| Python | pyright, ruff | debugpy | neotest-python |
+| Java | jdtls | java-debug-adapter | neotest-java |
+| Go | gopls | delve | neotest-golang |
+| Rust | rust-analyzer | codelldb | rustaceanvim |
+| C# | Roslyn (non OmniSharp) | netcoredbg | neotest-vstest |
+| Node e TypeScript | vtsls, eslint | js-debug-adapter | jest e vitest |
+
+In più: JSON, YAML, TOML, Markdown, Docker, Git, formattazione con prettier, refactoring e rinomina con anteprima, GitHub con Octo.
+
+| Tasti | Azione |
+| --- | --- |
+| `Spazio d b` | punto di interruzione |
+| `Spazio d c` | avvia o continua il debug |
+| `Spazio d i / d O / d o` | entra nella funzione / passa oltre / esce |
+| `Spazio d u` | pannello del debug |
+| `Spazio t r` | esegue il test più vicino |
+| `Spazio t t` | esegue i test del file |
+| `Spazio t T` | esegue tutti i test |
+| `Spazio t s` | riepilogo dei test |
+| `Spazio t d` | debug del test più vicino |
+| `Spazio r f / r x / r i` | estrae una funzione / una variabile, o riporta nel codice una variabile |
+| `Spazio c r` | rinomina con anteprima in diretta |
+| `Spazio g i / g p` | elenco delle issue / delle PR di GitHub (Octo) |
+
+Per C# serve un file `.sln` o `.csproj` nella cartella: Roslyn analizza l'intera soluzione, quindi la prima apertura è lenta.
 
 ## Dev container: come funzionano
 
@@ -353,16 +389,29 @@ Sul PC di partenza:
 ./dev-env.sh export --claude-settings   # include anche ~/.claude/settings.json (controllalo prima)
 ```
 
-L'archivio contiene le configurazioni (tmux, script `dev*`, Neovim, lazygit, regole e skill di Claude), le impostazioni di Git (nome, email, alias) e un inventario dei programmi installati. Non contiene chiavi SSH, token né credenziali. Non pubblicarlo comunque: sono le tue configurazioni.
+L'archivio contiene le configurazioni (tmux, script `dev*`, Neovim, lazygit, mise, regole e skill di Claude), le impostazioni di Git (nome, email, alias, delta e stile dei conflitti) e un inventario dei programmi installati con le loro versioni. Non contiene chiavi SSH, token né credenziali. Non pubblicarlo comunque: sono le tue configurazioni.
 
 Sul PC nuovo:
 
 ```bash
 tar xzf dev-env-DATA.tar.gz && cd dev-env
-./dev-env.sh install                         # strumenti base, Neovim, LazyVim, lazygit, Claude, font, oh-my-zsh
+./dev-env.sh install                         # strumenti base, Neovim, LazyVim, lazygit, Claude, font, oh-my-zsh, bat, eza, delta, direnv, uv
+./dev-env.sh install --languages             # in più: Java, Maven, Python, .NET, Go, Node, Rust, pnpm
 ./dev-env.sh install --containers            # in più: Podman, docker-compose, mise, Node, CLI devcontainer, podman-tui
 ./dev-env.sh install --containers --flutter  # in più: Flutter
 ```
+
+Le opzioni si possono combinare. Cosa fa, in ordine:
+
+1. installa i pacchetti di sistema, Neovim ufficiale, lazygit, Claude Code, il font e oh-my-zsh;
+2. rimette al loro posto le configurazioni dell'archivio (le versioni diverse già presenti vanno in un backup);
+3. scrive in `~/.zshrc`, tra i marcatori `# >>> dev-env >>>` e `# <<< dev-env <<<`, il `PATH`, zoxide, mise, direnv e cargo (il blocco si rigenera a ogni esecuzione);
+4. installa con mise bat, eza, delta, direnv e uv, più tutto quello che c'è nel `config.toml` di mise dell'archivio;
+5. applica le impostazioni di Git. Se delta non è installato salta `core.pager` e `interactive.diffFilter`, così git non smette di mostrare l'output;
+6. con `--languages`: JDK 21, Maven e Python con apt, `dotnet-sdk-10.0` con apt (se il sistema non lo ha, stampa il link per installarlo a mano), Go e Node LTS con mise, Rust con `rustup`, pnpm con Corepack;
+7. scarica i plugin di LazyVim e poi, **aspettando che finiscano**, installa i parser treesitter e i pacchetti di Mason (server, debugger e formatter).
+
+La parte di Neovim può richiedere diversi minuti. Se un pacchetto non si installa, l'installer lo segnala e continua: lo recuperi con `:Mason`.
 
 Alla fine stampa i passi da fare a mano: `chsh` per zsh, scegliere il font nel terminale, `gh auth login`, login di Claude, chiavi SSH.
 
@@ -378,6 +427,9 @@ Alla fine stampa i passi da fare a mano: `chsh` per zsh, scegliere il font nel t
 | il pannello laterale ha la larghezza sbagliata | guarda `~/.cache/dev/side-width.log` |
 | Claude mi dice che un comando è bloccato | è `dev-guard`: il comando va fatto con `dev-in`. Per toglierlo, cancella l'hook da `.claude/settings.local.json` |
 | LazyVim nel container non ha le mie ultime modifiche | `dev-personal-setup` |
+| `roslyn` non si installa da `:Mason` (errore 404 sul download) | il registry `Crashdummyy/mason-registry` punta a una release che non esiste ancora. Installa l'ultima esistente: `:MasonInstall roslyn@5.14.0-1.26552.12` (l'installer lo fa da solo) |
+| `cargo`, `uv` o `pnpm` non si trovano | apri una shell nuova, oppure `source ~/.cargo/env`; controlla che `~/.local/bin` sia nel `PATH` |
+| `git diff` non mostra più niente | `delta` non è installato ma `core.pager` lo richiede: `mise use -g delta`, oppure `git config --global --unset core.pager` |
 | `dev-up: docker is not installed` (o `podman`) | il motore scelto non c'è: installalo, o rilancia `./install.sh` e scegli l'altro |
 | `dev-container: command not found` | i vecchi nomi sono stati tolti: usa `dev-c-c` e `dev-o`/`dev-c-o` |
 | `Alt+n` non apre la shell nel container | chiudi e riapri le sessioni (`dev-stop` e poi `dev`) per caricare la nuova configurazione |
@@ -413,9 +465,10 @@ rm -rf ~/.local/share/dev-personal ~/.cache/dev ~/.config/bottega
 ```bash
 python3 -m unittest discover -s tests   # dev-guard: 21 test
 bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 111 controlli
+bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 75 controlli
 ```
 
-`test_scripts.sh` lavora in una home temporanea: non tocca la tua configurazione.
+`test_scripts.sh` e `test_dev_env.sh` lavorano in una home temporanea: non toccano la tua configurazione.
 
 ## Cosa non è ancora provato
 
