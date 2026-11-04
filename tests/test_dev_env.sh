@@ -132,6 +132,7 @@ test_export_archive() {
   unset GIT_CONFIG_GLOBAL
 }
 
+# shellcheck disable=SC2016
 setup_fakes() {
   fakebin="$root/fakebin"
   calls="$root/calls.log"

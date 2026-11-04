@@ -409,6 +409,52 @@ replay_gitconfig() {
   done < "$f"
 }
 
+ensure_mise() {
+  if [ ! -x "$HOME/.local/bin/mise" ]; then
+    curl -fsSL https://mise.run | sh
+  fi
+}
+
+install_cli_tools() {
+  say "Strumenti da terminale (bat, eza, delta, direnv, uv)"
+  ensure_mise
+  if [ -f "$HOME/.config/mise/config.toml" ]; then
+    "$HOME/.local/bin/mise" install
+  fi
+  "$HOME/.local/bin/mise" use -g bat eza delta direnv uv
+}
+
+install_dotnet() {
+  if apt-cache policy dotnet-sdk-10.0 2>/dev/null | grep -q 'Candidate: [0-9]'; then
+    sudo apt-get install -y dotnet-sdk-10.0
+  else
+    warn "dotnet-sdk-10.0 non è nei repository di questo sistema: installalo a mano (https://learn.microsoft.com/dotnet/core/install/linux)"
+  fi
+}
+
+install_rust() {
+  if [ -x "$HOME/.cargo/bin/rustup" ]; then
+    echo "Rust già presente"
+    return 0
+  fi
+  say "Rust (rustup)"
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default -c rust-analyzer
+}
+
+enable_pnpm() {
+  "$HOME/.local/bin/mise" exec node@lts -- corepack enable --install-directory "$HOME/.local/bin" pnpm
+}
+
+install_languages() {
+  say "Linguaggi: Java, Python, .NET, Go, Node, Rust e pnpm"
+  sudo apt-get install -y openjdk-21-jdk maven python3 python3-venv python3-pip
+  install_dotnet
+  ensure_mise
+  "$HOME/.local/bin/mise" use -g go@latest node@lts
+  install_rust
+  enable_pnpm
+}
+
 install_containers() {
   say "Podman e strumenti per i DevContainer"
   sudo apt-get install -y podman golang-go make \
@@ -420,9 +466,7 @@ install_containers() {
     chmod +x "$HOME/.local/bin/docker-compose"
   fi
 
-  if [ ! -x "$HOME/.local/bin/mise" ]; then
-    curl -fsSL https://mise.run | sh
-  fi
+  ensure_mise
   "$HOME/.local/bin/mise" use -g node@lts
   "$HOME/.local/bin/mise" exec node@lts -- npm install -g @devcontainers/cli
 
