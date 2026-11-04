@@ -39,6 +39,7 @@ FILES=(
   .local/bin/dctl
   .config/lazygit/config.yml
   .config/mise/config.toml
+  .config/starship.toml
   .claude/CLAUDE.md
 )
 DIRS=(
