@@ -5,7 +5,7 @@
 #       Sul PC di partenza: raccoglie le configurazioni vere e un inventario,
 #       e crea ~/dev-env-DATA.tar.gz (contiene anche questo script).
 #
-#   ./dev-env.sh install [--containers] [--flutter]
+#   ./dev-env.sh install [--containers] [--languages] [--flutter]
 #       Sul PC nuovo (Debian, Ubuntu, Mint): installa gli strumenti e rimette
 #       al loro posto le configurazioni esportate.
 #
@@ -38,6 +38,8 @@ FILES=(
   .local/bin/dev-personal-setup
   .local/bin/dctl
   .config/lazygit/config.yml
+  .config/mise/config.toml
+  .config/starship.toml
   .claude/CLAUDE.md
 )
 DIRS=(
@@ -55,7 +57,7 @@ usage() {
   cat <<'EOF'
 Uso:
   ./dev-env.sh export [--claude-settings]
-  ./dev-env.sh install [--containers] [--flutter]
+  ./dev-env.sh install [--containers] [--languages] [--flutter]
 
 export   crea ~/dev-env-DATA.tar.gz con le tue configurazioni e un inventario
 install  installa gli strumenti e applica le configurazioni (da lanciare dentro
@@ -63,6 +65,7 @@ install  installa gli strumenti e applica le configurazioni (da lanciare dentro
 
 --containers   in più: Podman, socket, docker-compose, mise, Node, devcontainer
                CLI e podman-tui (compilato per la tua versione di Podman)
+--languages    in più: Java, Maven, Python, .NET, Go, Node, Rust e pnpm
 --flutter      in più: Flutter e le librerie per le app desktop Linux
 EOF
 }
@@ -105,12 +108,25 @@ write_manifest() {
     ver podman-tui version
     ver docker-compose version
     ver mise --version
+    ver uv --version
     ver node --version
+    ver pnpm --version
+    ver python3 --version
+    ver java -version
+    ver mvn --version
     ver go version
+    ver rustc --version
+    ver cargo --version
+    ver dotnet --version
     ver gh --version
     ver flutter --version
     ver btop --version
     ver zoxide --version
+    ver bat --version
+    ver eza --version
+    ver delta --version
+    ver direnv version
+    ver starship --version
     ver shellcheck --version
     ver jq --version
     echo
@@ -146,6 +162,18 @@ write_manifest() {
   } > "$root/manifest.txt"
 }
 
+filter_gitconfig() {
+  grep -E '^(user\.name|user\.email|init\.defaultbranch|core\.editor|core\.pager|interactive\.difffilter|merge\.conflictstyle|delta\.|alias\.)'
+}
+
+# La config di mise può avere una sezione [env] con variabili private: si esporta solo [tools].
+keep_mise_tools_only() {
+  local file="$1" tmp
+  tmp="$(mktemp)"
+  awk '/^\[/ { in_tools = ($0 ~ /^\[tools(\]|\.)/) } in_tools' "$file" > "$tmp"
+  mv "$tmp" "$file"
+}
+
 export_env() {
   local with_claude_settings=0 a
   for a in "$@"; do
@@ -170,6 +198,11 @@ export_env() {
     fi
   done
 
+  if [ -f "$root/files/.config/mise/config.toml" ]; then
+    keep_mise_tools_only "$root/files/.config/mise/config.toml"
+    echo "  mise: esportata solo la sezione [tools]"
+  fi
+
   if [ "$with_claude_settings" = 1 ]; then
     if [ -f "$HOME/.claude/settings.json" ]; then
       tar -C "$HOME" -cf - .claude/settings.json | tar -C "$root/files" -xf -
@@ -177,10 +210,8 @@ export_env() {
     fi
   fi
 
-  say "Salvo le impostazioni di Git (solo nome, email, editor e alias)"
-  git config --global --list 2>/dev/null \
-    | grep -E '^(user\.name|user\.email|init\.defaultbranch|core\.editor|alias\.)' \
-    > "$root/gitconfig.txt" || true
+  say "Salvo le impostazioni di Git (nome, email, editor, alias, delta e stile dei conflitti)"
+  git config --global --list 2>/dev/null | filter_gitconfig > "$root/gitconfig.txt" || true
 
   if [ -f "$HOME/.zshrc" ]; then
     say "Salvo una copia di .zshrc da rivedere a mano (senza le righe con parole come key, token, secret)"
@@ -364,6 +395,9 @@ write_zshrc_block() {
     echo 'export PATH="$PATH:/opt/nvim-linux-x86_64/bin"'
     echo 'command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init zsh)"'
     echo '[ -x "$HOME/.local/bin/mise" ] && eval "$($HOME/.local/bin/mise activate zsh)"'
+    echo 'command -v direnv >/dev/null 2>&1 && eval "$(direnv hook zsh)"'
+    echo '[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"'
+    echo 'command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"'
     echo '[ -d "$HOME/develop/flutter/bin" ] && export PATH="$HOME/develop/flutter/bin:$PATH"'
     echo '# <<< dev-env <<<'
   } >> "$rc"
@@ -376,11 +410,68 @@ replay_gitconfig() {
   fi
   say "Impostazioni di Git"
   while IFS='=' read -r k v; do
-    if [ -n "$k" ]; then
-      git config --global "$k" "$v"
-      echo "  $k"
+    if [ -z "$k" ]; then
+      continue
     fi
+    case "$k" in
+      core.pager|interactive.difffilter)
+        if ! command -v delta >/dev/null 2>&1; then
+          warn "delta non installato: salto $k"
+          continue
+        fi
+        ;;
+    esac
+    git config --global "$k" "$v"
+    echo "  $k"
   done < "$f"
+}
+
+ensure_mise() {
+  if [ ! -x "$HOME/.local/bin/mise" ]; then
+    curl -fsSL https://mise.run | sh
+  fi
+}
+
+install_cli_tools() {
+  say "Strumenti da terminale (bat, eza, delta, direnv, uv, starship)"
+  ensure_mise
+  if [ -f "$HOME/.config/mise/config.toml" ]; then
+    "$HOME/.local/bin/mise" install
+  fi
+  "$HOME/.local/bin/mise" use -g bat eza delta direnv uv starship
+}
+
+install_dotnet() {
+  local policy
+  policy="$(apt-cache policy dotnet-sdk-10.0 2>/dev/null || true)"
+  if [[ "$policy" == *"Candidate: "[0-9]* ]]; then
+    sudo apt-get install -y dotnet-sdk-10.0
+  else
+    warn "dotnet-sdk-10.0 non è nei repository di questo sistema: installalo a mano (https://learn.microsoft.com/dotnet/core/install/linux)"
+  fi
+}
+
+install_rust() {
+  if [ -x "$HOME/.cargo/bin/rustup" ]; then
+    echo "Rust già presente"
+    return 0
+  fi
+  say "Rust (rustup)"
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default -c rust-analyzer
+}
+
+install_pnpm() {
+  "$HOME/.local/bin/mise" use -g pnpm
+}
+
+install_languages() {
+  say "Linguaggi: Java, Python, .NET, Go, Node, Rust e pnpm"
+  sudo apt-get install -y openjdk-21-jdk maven python3 python3-venv python3-pip
+  install_dotnet
+  ensure_mise
+  "$HOME/.local/bin/mise" use -g go@latest node@lts
+  install_rust || warn "Rust non installato: riprova con il comando di https://rustup.rs"
+  install_pnpm || warn "pnpm non installato: riprova con  mise use -g pnpm"
 }
 
 install_containers() {
@@ -394,9 +485,7 @@ install_containers() {
     chmod +x "$HOME/.local/bin/docker-compose"
   fi
 
-  if [ ! -x "$HOME/.local/bin/mise" ]; then
-    curl -fsSL https://mise.run | sh
-  fi
+  ensure_mise
   "$HOME/.local/bin/mise" use -g node@lts
   "$HOME/.local/bin/mise" exec node@lts -- npm install -g @devcontainers/cli
 
@@ -451,12 +540,125 @@ install_completions() {
   rm -f "$HOME"/.zcompdump*
 }
 
+NVIM_BIN="${NVIM_BIN:-/opt/nvim-linux-x86_64/bin/nvim}"
+
+# Il registry personalizzato di roslyn può puntare a una release che non esiste ancora:
+# in quel caso si ripiega su questa versione, che esiste su GitHub.
+ROSLYN_FALLBACK_VERSION="5.14.0-1.26552.12"
+
+NVIM_PARSERS=(
+  bash c c_sharp css diff dockerfile fsharp git_config git_rebase gitattributes gitcommit gitignore
+  go gomod gosum gowork html java javascript json json5 lua luadoc markdown markdown_inline ninja
+  python query regex ron rst rust sql toml tsx typescript vim vimdoc xml yaml
+)
+
+NVIM_MASON_PACKAGES=(
+  codelldb csharpier debugpy delve docker-compose-language-service dockerfile-language-server
+  eslint_d fantomas gofumpt goimports golangci-lint gopls hadolint java-debug-adapter java-test
+  jdtls js-debug-adapter json-lsp lua-language-server markdown-toc markdownlint-cli2 marksman
+  netcoredbg prettier pyright ruff rust-analyzer shfmt stylua taplo vtsls yaml-language-server
+)
+
+lua_list() {
+  local item
+  printf '{ '
+  for item in "$@"; do
+    printf '"%s", ' "$item"
+  done
+  printf '}'
+}
+
+write_nvim_tools_script() {
+  local file="$1"
+  cat > "$file" <<LUA
+require("lazy").load({ plugins = { "nvim-treesitter", "mason.nvim" } })
+
+local parsers = $(lua_list "${NVIM_PARSERS[@]}")
+local packages = $(lua_list "${NVIM_MASON_PACKAGES[@]}")
+local roslyn_fallback = "$ROSLYN_FALLBACK_VERSION"
+
+-- The sync that ran before this script may have been stopped in the middle of a build.
+vim.fn.delete(vim.fn.expand("~/.cache/tree-sitter/lock"), "rf")
+for _, directory in ipairs(vim.fn.glob(vim.fn.stdpath("cache") .. "/tree-sitter-*-tmp", false, true)) do
+  vim.fn.delete(directory, "rf")
+end
+
+local treesitter = require("nvim-treesitter")
+for _ = 1, 3 do
+  local installed = treesitter.get_installed()
+  local missing = vim.tbl_filter(function(name)
+    return not vim.list_contains(installed, name)
+  end, parsers)
+  if #missing == 0 then
+    break
+  end
+  treesitter.install(missing):wait(1800000)
+end
+
+local registry = require("mason-registry")
+local pending = 0
+local refreshed = false
+
+local function installing()
+  for _, package in ipairs(registry.get_all_packages()) do
+    if package:is_installing() then
+      return true
+    end
+  end
+  return false
+end
+
+local function install(name, version, on_failure)
+  local found, package = pcall(registry.get_package, name)
+  if not found or package:is_installing() or (package:is_installed() and not version) then
+    return
+  end
+  pending = pending + 1
+  local started, reason = pcall(package.install, package, { version = version }, function(success, error)
+    pending = pending - 1
+    if not success then
+      print(name .. " non installato: " .. tostring(error))
+      if on_failure then
+        on_failure()
+      end
+    end
+  end)
+  if not started then
+    pending = pending - 1
+    print(name .. " non installato: " .. tostring(reason))
+  end
+end
+
+registry.refresh(function()
+  for _, name in ipairs(packages) do
+    install(name)
+  end
+  install("roslyn", nil, function()
+    install("roslyn", roslyn_fallback)
+  end)
+  refreshed = true
+end)
+
+vim.wait(1800000, function()
+  return refreshed and pending == 0 and not installing()
+end, 500)
+vim.cmd("qa!")
+LUA
+}
+
 sync_nvim() {
-  local nv=/opt/nvim-linux-x86_64/bin/nvim
-  if [ -x "$nv" ]; then
-    say "Scarico i plugin di LazyVim (può richiedere qualche minuto)"
-    "$nv" --headless "+Lazy! sync" +qa || warn "sincronizzazione dei plugin non completata: apri nvim e controlla con :Lazy"
+  if [ ! -x "$NVIM_BIN" ]; then
+    return 0
   fi
+  say "Scarico i plugin di LazyVim (può richiedere qualche minuto)"
+  "$NVIM_BIN" --headless "+Lazy! sync" +qa || warn "sincronizzazione dei plugin non completata: apri nvim e controlla con :Lazy"
+
+  say "Installo parser, server e debugger (può richiedere diversi minuti)"
+  local script
+  script="$(mktemp --suffix=.lua)"
+  write_nvim_tools_script "$script"
+  "$NVIM_BIN" --headless -c "luafile $script" || warn "installazione di server e parser non completata: apri nvim e controlla con :Mason"
+  rm -f "$script"
 }
 
 final_notes() {
@@ -473,10 +675,11 @@ EOF
 }
 
 install_env() {
-  local with_containers=0 with_flutter=0 a
+  local with_containers=0 with_languages=0 with_flutter=0 a
   for a in "$@"; do
     case "$a" in
       --containers) with_containers=1 ;;
+      --languages) with_languages=1 ;;
       --flutter) with_flutter=1 ;;
       *) die "opzione sconosciuta: $a" ;;
     esac
@@ -498,9 +701,14 @@ install_env() {
   install_ohmyzsh
   apply_files
   write_zshrc_block
+  install_cli_tools
+  export PATH="$HOME/.local/share/mise/shims:$HOME/.cargo/bin:$PATH"
   replay_gitconfig
   if [ "$with_containers" = 1 ]; then
     install_containers
+  fi
+  if [ "$with_languages" = 1 ]; then
+    install_languages
   fi
   if [ "$with_flutter" = 1 ]; then
     install_flutter
