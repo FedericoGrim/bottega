@@ -408,7 +408,7 @@ Le opzioni si possono combinare. Cosa fa, in ordine:
 3. scrive in `~/.zshrc`, tra i marcatori `# >>> dev-env >>>` e `# <<< dev-env <<<`, il `PATH`, zoxide, mise, direnv e cargo (il blocco si rigenera a ogni esecuzione);
 4. installa con mise bat, eza, delta, direnv e uv, più tutto quello che c'è nel `config.toml` di mise dell'archivio;
 5. applica le impostazioni di Git. Se delta non è installato salta `core.pager` e `interactive.diffFilter`, così git non smette di mostrare l'output;
-6. con `--languages`: JDK 21, Maven e Python con apt, `dotnet-sdk-10.0` con apt (se il sistema non lo ha, stampa il link per installarlo a mano), Go e Node LTS con mise, Rust con `rustup`, pnpm con Corepack;
+6. con `--languages`: JDK 21, Maven e Python con apt, `dotnet-sdk-10.0` con apt (se il sistema non lo ha, stampa il link per installarlo a mano), Go, Node LTS e pnpm con mise, Rust con `rustup`. Se un passo dei linguaggi fallisce, l'installer lo segnala e va avanti;
 7. scarica i plugin di LazyVim e poi, **aspettando che finiscano**, installa i parser treesitter e i pacchetti di Mason (server, debugger e formatter).
 
 La parte di Neovim può richiedere diversi minuti. Se un pacchetto non si installa, l'installer lo segnala e continua: lo recuperi con `:Mason`.
@@ -465,7 +465,7 @@ rm -rf ~/.local/share/dev-personal ~/.cache/dev ~/.config/bottega
 ```bash
 python3 -m unittest discover -s tests   # dev-guard: 21 test
 bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 115 controlli
-bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 80 controlli
+bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 85 controlli
 ```
 
 `test_scripts.sh` e `test_dev_env.sh` lavorano in una home temporanea: non toccano la tua configurazione.
