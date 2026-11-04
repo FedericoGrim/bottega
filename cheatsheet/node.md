@@ -58,3 +58,10 @@
 | `pnpm install` | installa le dipendenze |
 | `pnpm add nome` | aggiunge un pacchetto |
 | `pnpm dlx nome` | come npx |
+| `corepack enable pnpm` | attiva pnpm senza installarlo con npm |
+| `pnpm add -D nome` | aggiunge un pacchetto di sviluppo |
+| `pnpm remove nome` | rimuove un pacchetto |
+| `pnpm run dev` | avvia lo script dev |
+| `pnpm exec nome` | esegue un programma installato nel progetto |
+| `pnpm install --frozen-lockfile` | come npm ci: installa esattamente da pnpm-lock.yaml |
+| `pnpm update` | aggiorna le dipendenze |
