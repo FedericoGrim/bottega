@@ -216,7 +216,7 @@ Se il progetto ha un container ma è spento, `Alt+n` dà errore e la scheda si c
 | `Invio` | copia il comando negli appunti del PC e chiude: lo incolli con `Ctrl+Shift+V` |
 | `Esc` | chiude |
 
-Gli argomenti sono i file Markdown di [`cheatsheet/`](cheatsheet), uno per argomento: Git, GitHub (con i nomi di branch, commit e PR), lazygit, LazyVim, Podman, DevContainer, Claude Code, tmux e Bottega, Terminale, Flutter, .NET, Spring Boot, Node.js, Python, Go, Rust.
+Gli argomenti sono i file Markdown di [`cheatsheet/`](cheatsheet), uno per argomento: Git, GitHub (con i nomi di branch, commit e PR), lazygit, LazyVim, Podman, DevContainer, Claude Code, tmux e Bottega, Terminale, Flutter, .NET, Spring Boot, Java, Node.js, Python, Go, Rust.
 
 Per aggiungere o modificare un argomento:
 
