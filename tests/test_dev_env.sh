@@ -132,11 +132,96 @@ test_export_archive() {
   unset GIT_CONFIG_GLOBAL
 }
 
+setup_fakes() {
+  fakebin="$root/fakebin"
+  calls="$root/calls.log"
+  rm -rf "$fakebin" "$calls"
+  mkdir -p "$fakebin"
+  : >"$calls"
+  export CALLS="$calls"
+  export DOTNET_CANDIDATE="10.0.114"
+  printf '#!/bin/bash\nexec "$@"\n' >"$fakebin/sudo"
+  printf '#!/bin/bash\necho "apt-get $*" >>"$CALLS"\n' >"$fakebin/apt-get"
+  printf '#!/bin/bash\necho "Candidate: $DOTNET_CANDIDATE"\n' >"$fakebin/apt-cache"
+  printf '#!/bin/bash\necho "mise $*" >>"$CALLS"\n' >"$fakebin/mise"
+  cat >"$fakebin/curl" <<'FAKE'
+#!/bin/bash
+case "$*" in
+  *sh.rustup.rs*) printf '#!/bin/sh\necho "rustup $*" >>"$CALLS"\n' ;;
+esac
+FAKE
+  chmod +x "$fakebin"/*
+  cp "$fakebin/mise" "$HOME/.local/bin/mise"
+  rm -rf "$HOME/.cargo" "$HOME/.config/mise"
+  PATH="$fakebin:/usr/bin:/bin"
+}
+
+calls_log() { cat "$calls"; }
+
+test_cli_tools_with_exported_config() {
+  setup_fakes
+  mkdir -p "$HOME/.config/mise"
+  : >"$HOME/.config/mise/config.toml"
+
+  install_cli_tools >/dev/null 2>&1
+
+  assert_contains "cli tools install what the config lists" "$(calls_log)" 'mise install'
+  assert_contains "cli tools make sure the five tools are in the config" "$(calls_log)" 'mise use -g bat eza delta direnv uv'
+}
+
+test_cli_tools_without_config() {
+  setup_fakes
+
+  install_cli_tools >/dev/null 2>&1
+
+  assert_not_contains "cli tools skip install without a config" "$(calls_log)" 'mise install'
+  assert_contains "cli tools still install the five tools" "$(calls_log)" 'mise use -g bat eza delta direnv uv'
+}
+
+test_languages() {
+  setup_fakes
+
+  install_languages >/dev/null 2>&1
+
+  assert_contains "languages install the JDK and Maven" "$(calls_log)" 'apt-get install -y openjdk-21-jdk maven python3'
+  assert_contains "languages install the dotnet sdk" "$(calls_log)" 'apt-get install -y dotnet-sdk-10.0'
+  assert_contains "languages install Go and Node with mise" "$(calls_log)" 'mise use -g go@latest node@lts'
+  assert_contains "languages install rust non-interactively" "$(calls_log)" 'rustup -y --profile default -c rust-analyzer'
+  assert_contains "languages enable pnpm through corepack" "$(calls_log)" 'mise exec node@lts -- corepack enable --install-directory'
+}
+
+test_languages_without_dotnet_package() {
+  setup_fakes
+  export DOTNET_CANDIDATE="(none)"
+
+  local output
+  output="$(install_languages 2>&1)"
+
+  assert_not_contains "no dotnet install when the package is missing" "$(calls_log)" 'dotnet-sdk-10.0'
+  assert_contains "a missing dotnet package is reported" "$output" 'dotnet-sdk-10.0'
+}
+
+test_languages_skip_rust_when_present() {
+  setup_fakes
+  mkdir -p "$HOME/.cargo/bin"
+  : >"$HOME/.cargo/bin/rustup"
+  chmod +x "$HOME/.cargo/bin/rustup"
+
+  install_languages >/dev/null 2>&1
+
+  assert_not_contains "rust is not installed twice" "$(calls_log)" 'rustup -y'
+}
+
 test_zshrc_block
 test_gitconfig_filter
 test_gitconfig_replay_without_delta
 test_gitconfig_replay_with_delta
 test_export_archive
+test_cli_tools_with_exported_config
+test_cli_tools_without_config
+test_languages
+test_languages_without_dotnet_package
+test_languages_skip_rust_when_present
 
 echo "$checks checks, $failures failed"
 [ "$failures" -eq 0 ]
