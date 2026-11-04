@@ -277,6 +277,42 @@ test_usage_mentions_languages() {
   assert_contains "usage documents --languages" "$(usage)" '--languages'
 }
 
+# shellcheck disable=SC2016
+setup_fake_nvim() {
+  setup_fakes
+  printf '#!/bin/bash\necho "nvim $*" >>"$CALLS"\nwhile [ $# -gt 0 ]; do\n  case "$1" in luafile) ;; -c) shift; case "$1" in "luafile "*) cp "${1#luafile }" "$CALLS.lua" ;; esac ;; esac\n  shift\ndone\n' >"$fakebin/nvim"
+  chmod +x "$fakebin/nvim"
+  NVIM_BIN="$fakebin/nvim"
+}
+
+test_sync_nvim_installs_plugins_then_tools() {
+  setup_fake_nvim
+
+  sync_nvim >/dev/null 2>&1
+
+  local lua
+  lua="$(cat "$calls.lua" 2>/dev/null)"
+  assert_contains "plugins are synced first" "$(calls_log)" 'nvim --headless +Lazy! sync +qa'
+  assert_contains "a lua script is run to install the tools" "$(calls_log)" 'luafile'
+  assert_contains "script installs treesitter parsers and waits" "$lua" 'require("nvim-treesitter").install'
+  assert_contains "script waits for the parsers" "$lua" ':wait('
+  for name in c_sharp go java rust python tsx; do
+    assert_contains "script installs the $name parser" "$lua" "\"$name\""
+  done
+  for name in pyright ruff jdtls gopls rust-analyzer vtsls csharpier netcoredbg yaml-language-server debugpy; do
+    assert_contains "script installs $name with mason" "$lua" "\"$name\""
+  done
+  assert_contains "script falls back to a pinned roslyn" "$lua" "$ROSLYN_FALLBACK_VERSION"
+  assert_contains "the pinned roslyn is a real version" "$ROSLYN_FALLBACK_VERSION" '5.'
+}
+
+test_sync_nvim_without_nvim_is_not_an_error() {
+  setup_fakes
+  NVIM_BIN="$root/does-not-exist"
+
+  assert_equals "sync is skipped silently without nvim" 0 "$(sync_nvim >/dev/null 2>&1; echo $?)"
+}
+
 test_zshrc_block
 test_gitconfig_filter
 test_gitconfig_replay_without_delta
@@ -291,6 +327,8 @@ test_install_runs_languages_only_on_request
 test_install_order
 test_unknown_option_is_rejected
 test_usage_mentions_languages
+test_sync_nvim_installs_plugins_then_tools
+test_sync_nvim_without_nvim_is_not_an_error
 
 echo "$checks checks, $failures failed"
 [ "$failures" -eq 0 ]
