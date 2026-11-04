@@ -125,6 +125,7 @@ write_manifest() {
     ver eza --version
     ver delta --version
     ver direnv version
+    ver starship --version
     ver shellcheck --version
     ver jq --version
     echo
@@ -395,6 +396,7 @@ write_zshrc_block() {
     echo '[ -x "$HOME/.local/bin/mise" ] && eval "$($HOME/.local/bin/mise activate zsh)"'
     echo 'command -v direnv >/dev/null 2>&1 && eval "$(direnv hook zsh)"'
     echo '[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"'
+    echo 'command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"'
     echo '[ -d "$HOME/develop/flutter/bin" ] && export PATH="$HOME/develop/flutter/bin:$PATH"'
     echo '# <<< dev-env <<<'
   } >> "$rc"
@@ -430,12 +432,12 @@ ensure_mise() {
 }
 
 install_cli_tools() {
-  say "Strumenti da terminale (bat, eza, delta, direnv, uv)"
+  say "Strumenti da terminale (bat, eza, delta, direnv, uv, starship)"
   ensure_mise
   if [ -f "$HOME/.config/mise/config.toml" ]; then
     "$HOME/.local/bin/mise" install
   fi
-  "$HOME/.local/bin/mise" use -g bat eza delta direnv uv
+  "$HOME/.local/bin/mise" use -g bat eza delta direnv uv starship
 }
 
 install_dotnet() {
