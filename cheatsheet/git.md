@@ -9,6 +9,11 @@
 | `git config --global init.defaultBranch main` | i nuovi repository partono dal branch main |
 | `git config --global core.editor nvim` | Neovim come editor dei messaggi |
 | `git config --global --list` | mostra la configurazione attuale |
+| `git config --global core.pager delta` | delta mostra diff, log e show con colori e righe affiancate |
+| `git config --global interactive.diffFilter "delta --color-only"` | delta anche dentro git add -p |
+| `git config --global delta.navigate true` | in delta, n e N saltano da un file all'altro |
+| `git config --global delta.line-numbers true` | numeri di riga nei diff |
+| `git config --global merge.conflictStyle zdiff3` | nei conflitti mostra anche la versione di partenza |
 | `git config --global alias.st status` | alias: da qui `git st` |
 | `git config --global alias.lg "log --oneline --graph --all"` | alias: da qui `git lg` |
 | `git init` | trasforma la cartella attuale in un repository |
