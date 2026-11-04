@@ -28,6 +28,6 @@ Significant decisions for this project. Newest at the bottom. Entries are never 
 - **Date:** 2026-11-04
 - **Status:** Accepted
 - **Context:** A new machine must get the same tools as this one (bat, eza, delta, direnv, uv). Installing each one with apt or a script gives different versions on each machine, and apt does not carry some of them.
-- **Decision:** `dev-env.sh export` saves `~/.config/mise/config.toml` and `install` runs `mise install`, then `mise use -g bat eza delta direnv uv`. Language toolchains are opt-in with `--languages`: Java, Maven, Python and .NET through apt; Go, Node and pnpm through mise; Rust through `rustup`. Corepack is not used because Node 26 no longer ships it.
+- **Decision:** `dev-env.sh export` saves the `[tools]` section of `~/.config/mise/config.toml` (never `[env]`, which can hold secrets) and `install` runs `mise install`, then `mise use -g bat eza delta direnv uv`. Language toolchains are opt-in with `--languages`: Java, Maven, Python and .NET through apt; Go, Node and pnpm through mise; Rust through `rustup`. Corepack is not used because Node 26 no longer ships it.
 - **Alternatives:** One apt or curl installer per tool, rejected for version drift; Homebrew, rejected as an extra package manager for a Debian-based setup.
 - **Consequences:** Tools follow `latest` unless a version is pinned in the exported `config.toml`. The Git pager is set only when delta exists, so a failed install never leaves Git without output.
