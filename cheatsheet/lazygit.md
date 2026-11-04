@@ -93,3 +93,11 @@
 | `Spazio` | riapplica lo stash selezionato e lo tiene |
 | `g` | riapplica lo stash e lo elimina (pop) |
 | `d` | elimina lo stash |
+
+## Configurazione
+
+| Cosa | Cosa fa |
+| --- | --- |
+| `~/.config/lazygit/config.yml` | file di configurazione di lazygit |
+| `git.paging.pager: delta --dark --paging=never` | riga del config: lazygit mostra i diff con delta |
+| `git.paging.colorArg: always` | riga del config: serve perché delta mantenga i colori |
