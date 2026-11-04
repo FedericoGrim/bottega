@@ -298,7 +298,7 @@ test_sync_nvim_installs_plugins_then_tools() {
   lua="$(cat "$calls.lua" 2>/dev/null)"
   assert_contains "plugins are synced first" "$(calls_log)" 'nvim --headless +Lazy! sync +qa'
   assert_contains "a lua script is run to install the tools" "$(calls_log)" 'luafile'
-  assert_contains "script installs treesitter parsers and waits" "$lua" 'require("nvim-treesitter").install'
+  assert_contains "script installs treesitter parsers and waits" "$lua" 'treesitter.install(missing)'
   assert_contains "script waits for the parsers" "$lua" ':wait('
   for name in c_sharp go java rust python tsx; do
     assert_contains "script installs the $name parser" "$lua" "\"$name\""

@@ -577,18 +577,44 @@ local parsers = $(lua_list "${NVIM_PARSERS[@]}")
 local packages = $(lua_list "${NVIM_MASON_PACKAGES[@]}")
 local roslyn_fallback = "$ROSLYN_FALLBACK_VERSION"
 
-require("nvim-treesitter").install(parsers):wait(1800000)
+-- The sync that ran before this script may have been stopped in the middle of a build.
+vim.fn.delete(vim.fn.expand("~/.cache/tree-sitter/lock"), "rf")
+for _, directory in ipairs(vim.fn.glob(vim.fn.stdpath("cache") .. "/tree-sitter-*-tmp", false, true)) do
+  vim.fn.delete(directory, "rf")
+end
+
+local treesitter = require("nvim-treesitter")
+for _ = 1, 3 do
+  local installed = treesitter.get_installed()
+  local missing = vim.tbl_filter(function(name)
+    return not vim.list_contains(installed, name)
+  end, parsers)
+  if #missing == 0 then
+    break
+  end
+  treesitter.install(missing):wait(1800000)
+end
 
 local registry = require("mason-registry")
 local pending = 0
+local refreshed = false
+
+local function installing()
+  for _, package in ipairs(registry.get_all_packages()) do
+    if package:is_installing() then
+      return true
+    end
+  end
+  return false
+end
 
 local function install(name, version, on_failure)
-  local ok, package = pcall(registry.get_package, name)
-  if not ok or (package:is_installed() and not version) then
+  local found, package = pcall(registry.get_package, name)
+  if not found or package:is_installing() or (package:is_installed() and not version) then
     return
   end
   pending = pending + 1
-  package:install({ version = version }, function(success, error)
+  local started, reason = pcall(package.install, package, { version = version }, function(success, error)
     pending = pending - 1
     if not success then
       print(name .. " non installato: " .. tostring(error))
@@ -597,6 +623,10 @@ local function install(name, version, on_failure)
       end
     end
   end)
+  if not started then
+    pending = pending - 1
+    print(name .. " non installato: " .. tostring(reason))
+  end
 end
 
 registry.refresh(function()
@@ -606,10 +636,11 @@ registry.refresh(function()
   install("roslyn", nil, function()
     install("roslyn", roslyn_fallback)
   end)
+  refreshed = true
 end)
 
 vim.wait(1800000, function()
-  return #registry.get_installed_package_names() > 0 and pending == 0
+  return refreshed and pending == 0 and not installing()
 end, 500)
 vim.cmd("qa!")
 LUA
