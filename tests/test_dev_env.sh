@@ -307,6 +307,10 @@ test_sync_nvim_installs_plugins_then_tools() {
     assert_contains "script installs $name with mason" "$lua" "\"$name\""
   done
   assert_contains "script falls back to a pinned roslyn" "$lua" "$ROSLYN_FALLBACK_VERSION"
+  assert_contains "script skips packages that are already installing" "$lua" 'is_installing'
+  assert_contains "script waits for installs started by others" "$lua" 'get_all_packages'
+  assert_contains "script retries the parsers that failed" "$lua" 'get_installed'
+  assert_contains "script clears stale tree-sitter locks" "$lua" 'tree-sitter/lock'
   assert_contains "the pinned roslyn is a real version" "$ROSLYN_FALLBACK_VERSION" '5.'
 }
 
