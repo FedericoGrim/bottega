@@ -35,6 +35,12 @@
 | `mise use nome@versione` | versione fissata per la cartella (crea mise.toml) |
 | `mise upgrade` | aggiorna gli strumenti gestiti da mise |
 | `mise exec node@lts -- comando` | esegue un comando con quella versione, senza attivarla |
+| `starship explain` | spiega cosa mostra ogni parte del prompt |
+| `starship config` | apre ~/.config/starship.toml nell'editor |
+| `starship preset --list` | elenco dei temi pronti |
+| `starship preset gruvbox-rainbow -o ~/.config/starship.toml` | applica un tema pronto |
+| `starship timings` | quali parti del prompt lo rallentano |
+| `starship toggle docker_context` | spegne o riaccende un modulo del prompt |
 
 ## Sicurezza
 
@@ -55,6 +61,7 @@
 | `curl https://mise.run \| sh` | installa mise, per gestire le versioni di Node e altri |
 | `eval "$(mise activate zsh)"` | riga da aggiungere a ~/.zshrc per attivare mise |
 | `eval "$(direnv hook zsh)"` | riga da aggiungere a ~/.zshrc per direnv |
+| `eval "$(starship init zsh)"` | riga da aggiungere in fondo a ~/.zshrc per il prompt starship |
 | `./dev-env.sh install --languages` | installa Java, Python, .NET, Go, Node, Rust e pnpm |
 | `mise use -g node@lts` | installa Node LTS per tutto il PC |
 | `npm install -g @devcontainers/cli` | installa la CLI dei DevContainer |
