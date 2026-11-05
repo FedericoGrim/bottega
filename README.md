@@ -210,7 +210,9 @@ Se il progetto ha un container ma è spento, `Alt+n` dà errore e la scheda si c
 
 #### Linguaggi e strumenti già attivi
 
-Gli extras di LazyVim attivi sono in `~/.config/nvim/lazyvim.json` e vengono copiati da `dev-env.sh`:
+Gli extras di LazyVim attivi sono in `nvim/lazyvim.json`, nel repository, insieme al resto della configurazione di Neovim (`nvim/lua/`). `dev-env.sh install` la copia in `~/.config/nvim` se lì non c'è già un `init.lua`; l'archivio dell'export, se c'è, ha la precedenza. `lazy-lock.json` non è versionato: i plugin restano sempre all'ultima versione.
+
+Gli extras attivi:
 
 | Linguaggio | Server | Debug | Test |
 | --- | --- | --- | --- |
@@ -435,6 +437,7 @@ Le opzioni si possono combinare. Cosa fa, in ordine:
 
 1. installa i pacchetti di sistema, Neovim ufficiale, lazygit, Claude Code, il font e oh-my-zsh;
 2. rimette al loro posto le configurazioni dell'archivio (le versioni diverse già presenti vanno in un backup);
+   poi, se `~/.config/nvim/init.lua` non esiste, copia la configurazione di `nvim/` del repository, e solo in mancanza di quella clona il LazyVim starter;
 3. scrive in `~/.zshrc`, tra i marcatori `# >>> dev-env >>>` e `# <<< dev-env <<<`, il `PATH`, zoxide, mise, direnv, cargo e il prompt starship (il blocco si rigenera a ogni esecuzione);
 4. installa con mise bat, eza, delta, direnv, uv e starship, più tutto quello che c'è nel `config.toml` di mise dell'archivio;
 5. applica le impostazioni di Git. Se delta non è installato salta `core.pager` e `interactive.diffFilter`, così git non smette di mostrare l'output;
@@ -495,7 +498,7 @@ rm -rf ~/.local/share/dev-personal ~/.cache/dev ~/.config/bottega
 ```bash
 python3 -m unittest discover -s tests   # dev-guard e dev-docs: 38 test
 bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 123 controlli
-bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 92 controlli
+bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 100 controlli
 ```
 
 `test_scripts.sh` e `test_dev_env.sh` lavorano in una home temporanea: non toccano la tua configurazione.
