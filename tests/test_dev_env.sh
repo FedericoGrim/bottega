@@ -38,6 +38,55 @@ assert_equals() {
 source "$project_root/dev-env.sh"
 set +e
 
+setup_repo_nvim() {
+  HERE="$root/repo"
+  rm -rf "$HERE" "$HOME/.config/nvim"
+  mkdir -p "$HERE/nvim/lua/plugins"
+  echo "-- bottega" >"$HERE/nvim/init.lua"
+  echo '{ "extras": ["lazyvim.plugins.extras.lang.python"] }' >"$HERE/nvim/lazyvim.json"
+  echo "return {}" >"$HERE/nvim/lua/plugins/dotnet.lua"
+}
+
+test_nvim_config_comes_from_the_repository() {
+  local previous_here="$HERE"
+  setup_repo_nvim
+  install_nvim_config >/dev/null 2>&1
+  assert_true "init.lua is copied" "$([ -f "$HOME/.config/nvim/init.lua" ] && echo 1 || echo 0)"
+  assert_true "the LazyVim extras are copied" "$(grep -q lang.python "$HOME/.config/nvim/lazyvim.json" && echo 1 || echo 0)"
+  assert_true "custom plugins are copied" "$([ -f "$HOME/.config/nvim/lua/plugins/dotnet.lua" ] && echo 1 || echo 0)"
+  HERE="$previous_here"
+}
+
+test_nvim_config_already_present_is_kept() {
+  local previous_here="$HERE"
+  setup_repo_nvim
+  mkdir -p "$HOME/.config/nvim"
+  echo "-- mine" >"$HOME/.config/nvim/init.lua"
+  install_nvim_config >/dev/null 2>&1
+  assert_equals "an existing config is not overwritten" "-- mine" "$(cat "$HOME/.config/nvim/init.lua")"
+  assert_true "no repository files are mixed in" "$([ ! -e "$HOME/.config/nvim/lazyvim.json" ] && echo 1 || echo 0)"
+  HERE="$previous_here"
+}
+
+test_nvim_config_falls_back_to_the_starter() {
+  local previous_here="$HERE"
+  setup_fakes
+  HERE="$root/no-repo-nvim"
+  mkdir -p "$HERE"
+  rm -rf "$HOME/.config/nvim"
+  # shellcheck disable=SC2016
+  printf '#!/bin/bash\necho "git $*" >>"%s"\nmkdir -p "${@: -1}/.git"\ntouch "${@: -1}/init.lua"\n' "$calls" >"$fakebin/git"
+  chmod +x "$fakebin/git"
+  PATH="$fakebin:$PATH" install_nvim_config >/dev/null 2>&1
+  assert_contains "the starter is cloned" "$(calls_log)" 'git clone https://github.com/LazyVim/starter'
+  assert_true "the starter has no .git directory" "$([ ! -d "$HOME/.config/nvim/.git" ] && echo 1 || echo 0)"
+  HERE="$previous_here"
+}
+
+test_nvim_lock_file_is_not_versioned() {
+  assert_contains "lazy-lock.json is ignored" "$(cat "$project_root/.gitignore")" 'lazy-lock.json'
+}
+
 test_zshrc_block() {
   : >"$HOME/.zshrc"
   write_zshrc_block >/dev/null
@@ -226,7 +275,7 @@ test_languages_skip_rust_when_present() {
 stub_install_steps() {
   local step
   for step in install_packages install_neovim install_treesitter install_lazygit install_claude \
-    install_font install_ohmyzsh apply_files write_zshrc_block install_containers \
+    install_font install_ohmyzsh apply_files install_nvim_config write_zshrc_block install_containers \
     install_flutter install_completions install_cli_tools install_languages final_notes; do
     eval "$step() { echo $step >>\"\$CALLS\"; }"
   done
@@ -385,6 +434,10 @@ test_unknown_option_is_rejected
 test_usage_mentions_languages
 test_sync_nvim_installs_plugins_then_tools
 test_sync_nvim_without_nvim_is_not_an_error
+test_nvim_config_comes_from_the_repository
+test_nvim_config_already_present_is_kept
+test_nvim_config_falls_back_to_the_starter
+test_nvim_lock_file_is_not_versioned
 
 echo "$checks checks, $failures failed"
 [ "$failures" -eq 0 ]

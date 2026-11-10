@@ -372,15 +372,27 @@ apply_files() {
 
   chmod +x "$HOME"/.local/bin/dev* "$HOME/.local/bin/dctl" 2>/dev/null || true
 
-  if [ ! -f "$HOME/.config/nvim/init.lua" ]; then
-    say "Nessuna configurazione di Neovim esportata: installo il LazyVim starter"
-    mkdir -p "$HOME/.config"
-    git clone https://github.com/LazyVim/starter "$HOME/.config/nvim"
-    rm -rf "$HOME/.config/nvim/.git"
-  fi
   if [ -d "$backup" ]; then
     echo "Backup dei file sostituiti: $backup"
   fi
+}
+
+# Ordine di preferenza: la configurazione già presente (anche quella dell'export),
+# poi quella versionata in nvim/, infine il LazyVim starter.
+install_nvim_config() {
+  local target="$HOME/.config/nvim"
+  if [ -f "$target/init.lua" ]; then
+    return 0
+  fi
+  mkdir -p "$HOME/.config"
+  if [ -f "$HERE/nvim/init.lua" ]; then
+    say "Configurazione di Neovim del repository (nvim/)"
+    cp -a "$HERE/nvim/." "$target"
+    return 0
+  fi
+  say "Nessuna configurazione di Neovim trovata: installo il LazyVim starter"
+  git clone https://github.com/LazyVim/starter "$target"
+  rm -rf "$target/.git"
 }
 
 write_zshrc_block() {
@@ -700,6 +712,7 @@ install_env() {
   install_font
   install_ohmyzsh
   apply_files
+  install_nvim_config
   write_zshrc_block
   install_cli_tools
   export PATH="$HOME/.local/share/mise/shims:$HOME/.cargo/bin:$PATH"

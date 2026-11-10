@@ -4,3 +4,4 @@ __pycache__/
 .env.*
 !.env.example
 *.tar.gz
+lazy-lock.json
