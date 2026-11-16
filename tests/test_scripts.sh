@@ -10,7 +10,7 @@ checks=0
 export HOME="$root/home"
 export TMUX_TMPDIR="$root/tmux"
 export TERM="xterm-256color"
-unset TMUX TMUX_PANE DEV_DIR DEV_PERSONAL_DIR WAYLAND_DISPLAY
+unset TMUX TMUX_PANE DEV_DIR DEV_PERSONAL_DIR WAYLAND_DISPLAY XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
 mkdir -p "$HOME/.local/bin" "$HOME/.cache" "$TMUX_TMPDIR" "$root/fakebin" "$root/work"
 
 fakebin="$root/fakebin"
@@ -133,7 +133,19 @@ assert_contains "default engine is podman" "$(cat "$user_config")" 'DEV_ENGINE:=
 assert_contains "default envs are all four" "$(cat "$user_config")" 'DEV_ENVS:=dev dev-o dev-c-c dev-c-o'
 
 echo "== install.sh options"
-output="$("$project_root/install.sh" --yes --envs dev-c-c --engine docker --panel lazydocker --shell keep 2>&1)"
+path_without() {
+  local hidden="$1" directory program directories bin_dir="$root/path-without-$1"
+  mkdir -p "$bin_dir"
+  IFS=: read -ra directories <<<"$PATH"
+  for directory in "${directories[@]}"; do
+    for program in "$directory"/*; do
+      [ -x "$program" ] && [ "$(basename "$program")" != "$hidden" ] && [ ! -e "$bin_dir/$(basename "$program")" ] &&
+        ln -s "$program" "$bin_dir/$(basename "$program")"
+    done
+  done
+  echo "$bin_dir"
+}
+output="$(PATH="$(path_without docker)" "$project_root/install.sh" --yes --envs dev-c-c --engine docker --panel lazydocker --shell keep 2>&1)"
 assert_contains "docker choice is saved" "$(cat "$user_config")" 'DEV_ENGINE:=docker'
 assert_contains "panel choice is saved" "$(cat "$user_config")" 'DEV_PANEL:=lazydocker'
 assert_contains "kept shell is saved" "$(cat "$user_config")" "DEV_SHELL:=$SHELL"
