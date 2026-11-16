@@ -273,6 +273,9 @@ assert_contains "agent tab runs opencode" "$(pane_text -L side -t hostproj:openc
 assert_contains "lazygit tab runs lazygit" "$(pane_text -L side -t hostproj:lazygit)" "FAKE-lazygit"
 assert_contains "podman tab runs podman-tui" "$(pane_text -L side -t hostproj:podman)" "FAKE-podman-tui"
 assert_true "no guard is installed for host projects" test ! -e "$root/work/hostproj/.claude/settings.local.json"
+session_option() { "$real_tmux" show-options -v -t "=$1:" "$2" 2>/dev/null; }
+assert_true "terminal title is enabled" test "$(session_option hostproj set-titles)" = on
+assert_true "terminal title is dev-o/hostproj" test "$(session_option hostproj set-titles-string)" = "dev-o/hostproj"
 
 echo "== dev-c-c (agent on the host)"
 mkdir -p "$root/work/ctr"
@@ -287,6 +290,7 @@ guard_settings="$(cat "$root/work/ctr/.claude/settings.local.json" 2>/dev/null)"
 assert_contains "guard hook is installed" "$guard_settings" "dev-guard"
 assert_contains "dev-in is pre-approved" "$guard_settings" "Bash(dev-in:*)"
 assert_true "terminals first tab is a container shell" wait_for 10 bash -c "'$real_tmux' -L terminals capture-pane -p -J -S - -t ctr | grep -q FAKE-PODMAN-EXEC"
+assert_true "terminal title is dev-c-c/ctr" test "$(session_option ctr set-titles-string)" = "dev-c-c/ctr"
 
 echo "== dev-c-o"
 mkdir -p "$root/work/ctr3"
@@ -295,6 +299,7 @@ assert_true "dev-c-o opens an opencode tab" wait_for 15 side_ready ctr3 opencode
 sleep 1
 assert_contains "dev-c-o editor runs in the container" "$(pane_text -t ctr3:code.'{top-left}')" "FAKE-PODMAN-EXEC"
 assert_contains "dev-c-o agent runs on the host" "$(pane_text -L side -t ctr3:opencode)" "FAKE-opencode"
+assert_true "terminal title is dev-c-o/ctr3" test "$(session_option ctr3 set-titles-string)" = "dev-c-o/ctr3"
 
 echo "== dev-c-o --agent-in-container"
 mkdir -p "$root/work/ctr2"
