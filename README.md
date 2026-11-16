@@ -52,6 +52,8 @@ Quattro ambienti, un comando ciascuno:
 - **Terminali** in basso: una sessione tmux a parte (`-L terminals`) con le sue schede.
 - **Pannello laterale** a destra: una terza sessione tmux (`-L side`) con tre schede: agente, lazygit e il pannello dei container scelto (podman-tui o lazydocker; la scheda si chiama `podman` o `docker` come il motore). Se il pannello non è installato, al suo posto gira `watch podman ps -a` (o `docker ps -a`). La larghezza del pannello cambia con la scheda: agente 30% (OpenCode 35%), lazygit 40%, container 55%.
 
+Il titolo della finestra del terminale diventa `<comando>/<progetto>`, per esempio `dev-o/bottega` o `dev-c-c/api`, così più terminali aperti si distinguono. Il titolo si imposta quando la sessione viene creata.
+
 Se la sessione esiste già, `dev` ci rientra invece di crearne una nuova.
 
 ## Installazione
@@ -494,7 +496,7 @@ rm -rf ~/.local/share/dev-personal ~/.cache/dev ~/.config/bottega
 
 ```bash
 python3 -m unittest discover -s tests   # dev-guard e dev-docs: 38 test
-bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 123 controlli
+bash tests/test_scripts.sh              # script con tmux vero e programmi finti: 127 controlli
 bash tests/test_dev_env.sh              # installer ed export di dev-env.sh, con apt, mise e nvim finti: 92 controlli
 ```
 
